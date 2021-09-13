@@ -18,7 +18,7 @@ Modules designed provides the tools that allow the definition, execution and vis
 
 - **_LogicUS.PL.DPLL_**: It defines the functions necessary for the application of the DPLL solving algorithm to sets of propositional clauses as well as the search for models, based on this technique. Also, it allows the visualization of the complete board.
 
-- **_LogicUS.PL.Resolution_**: Define the functions for working with the resolution algorithms implementing different strategies: saturation, regular, best first, linear, positive, negative, unitary, by inputs, ...
+- **_LogicUS.PL.Resolution_**: It gives the functions for working with the resolution algorithms implementing different strategies: saturation, regular, best first, linear, positive, negative, unitary, by inputs, ...
 
 - **_LogicUS.PL.CSP_**: It defines the functions necessary for working with BigFormulas including its definition and a basic SAT Solver for solving some (little) CSP.
 
