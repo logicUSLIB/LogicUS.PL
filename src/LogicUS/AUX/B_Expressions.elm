@@ -2,7 +2,7 @@ module LogicUS.AUX.B_Expressions exposing (B_Expr(..), evaluateBExpr, expression
 
 import Dict exposing (Dict)
 import LogicUS.AUX.A_Expressions exposing (..)
-import LogicUS.AUX.AuxiliarFuctions exposing (uniqueConcatList)
+import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
 import Parser exposing (..)
 
 

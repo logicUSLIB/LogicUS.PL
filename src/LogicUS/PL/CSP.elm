@@ -32,7 +32,7 @@ module LogicUS.PL.CSP exposing
 import Dict exposing (Dict)
 import List.Extra as LE
 import LogicUS.AUX.A_Expressions as Aux_AE exposing (A_Expr)
-import LogicUS.AUX.AuxiliarFuctions exposing (uniqueConcatList)
+import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
 import LogicUS.AUX.B_Expressions as Aux_BE exposing (B_Expr)
 import LogicUS.PL.Clauses as PL_CL exposing (ClausePL, ClausePLSet, fplToClauses)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL, Interpretation, PSymb)

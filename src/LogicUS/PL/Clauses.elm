@@ -39,7 +39,7 @@ module LogicUS.PL.Clauses exposing
 -- IMPORTS --
 --=========--
 
-import LogicUS.AUX.AuxiliarFuctions exposing (cleanSpaces, powerset, uniqueConcatList)
+import LogicUS.AUX.AuxiliarFunctions exposing (cleanSpaces, powerset, uniqueConcatList)
 import LogicUS.PL.NormalForms as PL_NF
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), Interpretation, Literal, PSymb, SetPL)
 import Parser exposing ((|.), (|=), Parser, Trailing(..))

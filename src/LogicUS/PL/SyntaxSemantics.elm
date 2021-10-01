@@ -66,10 +66,9 @@ module LogicUS.PL.SyntaxSemantics exposing
 import Graph exposing (Edge, Graph, Node, NodeId)
 import Graph.DOT as GDOT exposing (defaultStyles)
 import List.Extra as LE
-import LogicUS.AUX.AuxiliarFuctions exposing (replaceBySubscript)
+import LogicUS.AUX.AuxiliarFunctions as AUX
 import Parser exposing ((|.), (|=), Parser, Trailing(..))
 import Set exposing (Set)
-import String.Extra as SE
 
 
 
@@ -160,67 +159,6 @@ type alias Interpretation =
 --===============--
 --  FUNCTIONS    --
 --===============--
------------------------
--- Auxiliar functions -
------------------------
--- It generates all sublists of a list of elements.
-
-
-powerset : List a -> List (List a)
-powerset =
-    List.foldr (\x acc -> acc ++ List.map ((::) x) acc) [ [] ]
-
-
-
--- It removes the spaces of a string
-
-
-cleanSpaces : String -> String
-cleanSpaces x =
-    String.join "" <| String.split " " <| SE.clean x
-
-
-
--- It generates the string of a list of string lists in csv format.
-
-
-fromListToTableString : List (List String) -> String
-fromListToTableString xss =
-    String.join " \n" <| List.map (\xs -> String.join " ; " xs) xss
-
-
-
--- It generates the string of a list of string lists as an array environment in Latex.
-
-
-fromListToTableLatex : String -> List (List String) -> List (List String) -> List (List String) -> String
-fromListToTableLatex cols head body foot =
-    let
-        thead =
-            if List.isEmpty head then
-                ""
-
-            else
-                (String.join " \n" <| List.map (\xs -> String.join " & " (List.map (\x -> "\\mathbf{" ++ x ++ "}") xs) ++ " \\\\") head) ++ "\\hline \n"
-
-        tbody =
-            if List.isEmpty body then
-                ""
-
-            else
-                (String.join " \n" <| List.map (\xs -> String.join " & " xs ++ " \\\\") body) ++ "\\hline \n"
-
-        tfoot =
-            if List.isEmpty foot then
-                ""
-
-            else
-                (String.join " \n" <| List.map (\xs -> String.join " & " (List.map (\x -> "\\color{grey}{" ++ x ++ "}") xs) ++ "\\\\") foot) ++ "\\hline \n"
-    in
-    "\\begin{array}{" ++ cols ++ "}\\hline \n" ++ thead ++ tbody ++ tfoot ++ "\\end{array}"
-
-
-
 -----------------------
 -- Calc functions -
 -----------------------
@@ -575,7 +513,7 @@ interpretationsFromSymbolsAndLiterals symbs literals =
     in
     let
         optSymbs =
-            powerset <| List.filter (\x -> not <| List.member x symbsLiterals) symbs
+            AUX.powerset <| List.filter (\x -> not <| List.member x symbsLiterals) symbs
     in
     List.map (\ls -> (List.sort << LE.unique) (ls ++ trueSymbs)) optSymbs
 
@@ -603,7 +541,7 @@ splValuation fs i =
 -}
 fplInterpretations : FormulaPL -> List Interpretation
 fplInterpretations f =
-    List.sort <| List.map List.sort <| powerset <| fplSymbols f
+    List.sort <| List.map List.sort <| AUX.powerset <| fplSymbols f
 
 
 {-| It gives all possible interpretations of a set of formulas.
@@ -613,7 +551,7 @@ fplInterpretations f =
 -}
 splInterpretations : SetPL -> List Interpretation
 splInterpretations fs =
-    powerset <| splSymbols fs
+    AUX.powerset <| splSymbols fs
 
 
 {-| It gives all models of a formula
@@ -833,7 +771,7 @@ Messages are not perfect but we're working to improve it.
 -}
 fplReadFromString : String -> ( Maybe FormulaPL, String, String )
 fplReadFromString x =
-    case cleanSpaces x of
+    case AUX.cleanSpaces x of
         "" ->
             ( Maybe.Nothing, "", "Argument is empty" )
 
@@ -1059,7 +997,7 @@ finalize revOps finalExpr =
 -}
 interpretationReadFromString : String -> ( Maybe Interpretation, String )
 interpretationReadFromString x =
-    case cleanSpaces x of
+    case AUX.cleanSpaces x of
         "" ->
             ( Maybe.Nothing, "Argument is empty" )
 
@@ -1115,7 +1053,7 @@ fplToString f =
             pname
 
         Atom ( pname, pindices ) ->
-            pname ++ (replaceBySubscript <| (String.join "," <| List.map String.fromInt pindices))
+            pname ++ (AUX.replaceBySubscript <| (String.join "," <| List.map String.fromInt pindices))
 
         Neg p ->
             "¬ " ++ fplToString p
@@ -1241,7 +1179,7 @@ fplTruthTableString f =
                 )
                 tableEnters
     in
-    fromListToTableString (head :: body)
+    AUX.fromListToTableString (head :: body)
 
 
 {-| It generates the Latex code of a Truth Table of a PL formula. The result requires a math enviroment to be displayed.
@@ -1285,7 +1223,7 @@ fplTruthTableMathString f =
                 )
                 tableEnters
     in
-    fromListToTableLatex ("|" ++ String.repeat (List.length symbs + 1) "c|") [ head ] body []
+    AUX.fromListToTableLatex ("|" ++ String.repeat (List.length symbs + 1) "c|") [ head ] body []
 
 
 {-| It generates the Truth Table of a set of PL formulas as a string using CSV format.
@@ -1336,7 +1274,7 @@ splTruthTableString fs =
                 )
                 tableEnters
     in
-    fromListToTableString (head :: body)
+    AUX.fromListToTableString (head :: body)
 
 
 {-| It generates the Truth Table of a set of PL formulas as a string using CSV format. It only shows the truth values of variables and the evaluation of the set.
@@ -1375,7 +1313,7 @@ splCompactTruthTableString fs =
                 )
                 tableEnters
     in
-    fromListToTableString (head :: body)
+    AUX.fromListToTableString (head :: body)
 
 
 {-| It generates the Latex code of a Truth Table of Set of PL formulas. The result requires a math enviroment to be displayed.
@@ -1427,7 +1365,7 @@ splTruthTableMathString fs =
                 )
                 tableEnters
     in
-    fromListToTableLatex ("|" ++ String.repeat (List.length symbs + List.length fs + 1) "c|") [ head ] body []
+    AUX.fromListToTableLatex ("|" ++ String.repeat (List.length symbs + List.length fs + 1) "c|") [ head ] body []
 
 
 {-| It generates the Latex code of a Truth Table of Set of PL formulas. It only shows the truth values of the variables and the evaluation of the set. The result requires a math enviroment to be displayed.
@@ -1466,7 +1404,7 @@ splCompactTruthTableMathString fs =
                 )
                 tableEnters
     in
-    fromListToTableLatex ("|" ++ String.repeat (List.length symbs + 1) "c|") [ head ] body []
+    AUX.fromListToTableLatex ("|" ++ String.repeat (List.length symbs + 1) "c|") [ head ] body []
 
 
 {-| It gives the String representation of a formTree.

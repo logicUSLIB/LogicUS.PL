@@ -42,7 +42,7 @@ module LogicUS.PL.SemanticTableaux exposing
 import Graph exposing (Graph, Node)
 import Graph.DOT exposing (defaultStyles)
 import List.Extra as LE
-import LogicUS.AUX.AuxiliarFuctions exposing (uniqueConcatList)
+import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), Interpretation, SetPL)
 
 

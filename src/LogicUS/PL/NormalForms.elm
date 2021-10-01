@@ -13,7 +13,7 @@ module LogicUS.PL.NormalForms exposing (fplContainsEquiv, fplContainsDisj, fplCo
 --  IMPORTS  --
 --===========--
 
-import LogicUS.AUX.AuxiliarFuctions exposing (uniqueConcatList)
+import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), Interpretation, SetPL)
 
 

@@ -1,4 +1,4 @@
-module LogicUS.AUX.AuxiliarFuctions exposing (cleanSpaces, powerset, replaceBySubscript, replaceBySuperscript, subscriptLetters, uniqueConcatList)
+module LogicUS.AUX.AuxiliarFunctions exposing (cleanSpaces, fromListToTableLatex, fromListToTableString, powerset, replaceBySubscript, replaceBySuperscript, subscriptLetters, uniqueConcatList)
 
 import Dict exposing (Dict)
 import List.Extra as LE
@@ -66,3 +66,43 @@ replaceBySuperscript s =
 subscriptLetters : Dict Char Char
 subscriptLetters =
     Dict.fromList <| LE.zip [ 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'v', 'w', 'x' ] [ 'ₕ', 'ᵢ', 'ⱼ', 'ₖ', 'ₗ', 'ₘ', 'ₙ', 'ₒ', 'ₚ', 'ᵣ', 'ₛ', 'ₜ', 'ᵤ', 'ᵥ', 'ᵥ', 'ᵥ', 'ₓ' ]
+
+
+
+-- It generates the string of a list of string lists in csv format.
+
+
+fromListToTableString : List (List String) -> String
+fromListToTableString xss =
+    String.join " \n" <| List.map (\xs -> String.join " ; " xs) xss
+
+
+
+-- It generates the string of a list of string lists as an array environment in Latex.
+
+
+fromListToTableLatex : String -> List (List String) -> List (List String) -> List (List String) -> String
+fromListToTableLatex cols head body foot =
+    let
+        thead =
+            if List.isEmpty head then
+                ""
+
+            else
+                (String.join " \n" <| List.map (\xs -> String.join " & " (List.map (\x -> "\\mathbf{" ++ x ++ "}") xs) ++ " \\\\") head) ++ "\\hline \n"
+
+        tbody =
+            if List.isEmpty body then
+                ""
+
+            else
+                (String.join " \n" <| List.map (\xs -> String.join " & " xs ++ " \\\\") body) ++ "\\hline \n"
+
+        tfoot =
+            if List.isEmpty foot then
+                ""
+
+            else
+                (String.join " \n" <| List.map (\xs -> String.join " & " (List.map (\x -> "\\color{grey}{" ++ x ++ "}") xs) ++ "\\\\") foot) ++ "\\hline \n"
+    in
+    "\\begin{array}{" ++ cols ++ "}\\hline \n" ++ thead ++ tbody ++ tfoot ++ "\\end{array}"
