@@ -22,4 +22,7 @@ Modules designed provides the tools that allow the definition, execution and vis
 
 - **_LogicUS.PL.CSP_**: It defines the functions necessary for working with BigFormulas including its definition and a basic SAT Solver for solving some (little) CSP.
 
-You can access to the installation guide, theoretical and practical contents, and more at [LogicUS](https://ramgonvictor.wixsite.com/logicus).
+- **_LogicUS.PL.HornRS_**: It provides the methods and structures for working with Horn Reasoning Systems: rules and facts definition, forward and backward chaining, conversion to Horn clauses, ...
+
+
+You can access to the installation guide, theoretical and practical contents, and more at [LogicUS](https://www.cs.us.es/~fsancho/LogicUS/).
