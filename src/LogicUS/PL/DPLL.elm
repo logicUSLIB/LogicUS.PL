@@ -1,7 +1,7 @@
 module LogicUS.PL.DPLL exposing
     ( DPLLTableau
     , dpll, dpllTableauModels
-    , dpllTableauToString, dpllTableauToDOT
+    , dpllTableauToString, dpllTableauToDOT, dpllTableauToDOTStyled
     )
 
 {-| The module provides the tools for applying the DPLL algorithm to solve the fesibility of a set of propositional clauses and calculates its models if they exist.
@@ -19,7 +19,7 @@ module LogicUS.PL.DPLL exposing
 
 # Representation
 
-@docs dpllTableauToString, dpllTableauToDOT
+@docs dpllTableauToString, dpllTableauToDOT, dpllTableauToDOTStyled
 
 -}
 
@@ -219,8 +219,31 @@ dpllTableauToString g =
 dpllTableauToDOT : DPLLTableau -> String
 dpllTableauToDOT g =
     let
+        toStringNode =
+            \( i, cs ) ->
+                case i of
+                    0 ->
+                        Just <| String.join ", " <| List.map PL_CL.cplToString cs
+
+                    1 ->
+                        Just "◯"
+
+                    _ ->
+                        Just "□"
+
+        toStringEdge =
+            \l -> (Just << PL_SS.fplToString << PL_CL.clauseLitToLiteral) l
+    in
+    String.replace "\n" "" <| Graph.DOT.output toStringNode toStringEdge g
+
+
+{-| Express a DPLL Tableau as a string in DOT format that is viewable with a GraphViz Render with Style.
+-}
+dpllTableauToDOTStyled : DPLLTableau -> String
+dpllTableauToDOTStyled g =
+    let
         myStyles =
-            { defaultStyles | node = "shape=box, color=white, fontcolor=black", edge = "dir=none, color=blue, fontcolor=blue" }
+            { defaultStyles | node = "shape=Mrecord, fillcolor=\"#c1f6ff\", style=filled, fontcolor=\"#1a2935\", color=\"#1a2935\"", edge = "color=\"#1a2935\", fontcolor=\"#1a2935\"" }
 
         toStringNode =
             \( i, cs ) ->

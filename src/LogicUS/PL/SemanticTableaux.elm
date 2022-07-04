@@ -2,8 +2,8 @@ module LogicUS.PL.SemanticTableaux exposing
     ( FormulaPLType, PLSemanticTableau
     , fplType, fplComponents
     , splAllLiterals, splRemoveTaut, splSearchContradiction, splSearchDN, splSearchAlpha, splSearchBeta, splExpandDN, splExpandAlpha, splExpandBeta
-    , semanticTableau, semanticTableauModels
-    , semanticTableauToString, semanticTableauToDOT
+    , semanticTableau, semanticTableauRelevantLeaves, semanticTableauOpenLeaves, semanticTableauModels
+    , semanticTableauToString, semanticTableauToDOT, semanticTableauToJSON
     )
 
 {-| The module provides the elementary tools for building the semantic tableau of a set of PL formulas.
@@ -26,12 +26,12 @@ module LogicUS.PL.SemanticTableaux exposing
 
 # Semantic Tableau algorithm and models
 
-@docs semanticTableau, semanticTableauModels
+@docs semanticTableau, semanticTableauRelevantLeaves, semanticTableauOpenLeaves, semanticTableauModels
 
 
 # Fuctions for representation
 
-@docs semanticTableauToString, semanticTableauToDOT
+@docs semanticTableauToString, semanticTableauToDOT, semanticTableauToJSON
 
 -}
 
@@ -39,8 +39,8 @@ module LogicUS.PL.SemanticTableaux exposing
 --  IMPORTS  --
 --===========--
 
-import Graph exposing (Graph, Node)
-import Graph.DOT exposing (defaultStyles)
+import Graph.Tree as GTree exposing (Tree)
+import Json.Encode as JSONE exposing (Value)
 import List.Extra as LE
 import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), Interpretation, SetPL)
@@ -66,10 +66,19 @@ type FormulaPLType
     | T
 
 
+type STRule
+    = INITR
+    | DNR
+    | AR
+    | BR
+    | IR
+    | TR
+
+
 {-| Defines the PL Semantic Tableau type as a Graph whose node labels are pairs of an integer (0: internal node, 1: open leaf, -1: closed leaf) and the PL set considered in the corresponding node; and the edge labels are defined as pairs of the applied rule (A, B, DN, L, I, T) and the list of indexes of the formulas on which the rule is applied.
 -}
 type alias PLSemanticTableau =
-    Graph ( Int, SetPL ) ( FormulaPLType, List Int )
+    Tree { id : Int, fs : SetPL, parents : List Int, rule : STRule }
 
 
 
@@ -362,77 +371,106 @@ splExpandBeta fs f =
         ( splRemoveTaut <| uniqueConcatList newfs (List.take 1 fcomponents), splRemoveTaut <| uniqueConcatList newfs (List.drop 1 fcomponents) )
 
 
-{-| It generates the complete SemanticTableaux as a Graph, which is renderizable with representations methods.
-
-    splSemanticTableau fs4 == Graph (Inner { left = Leaf { key = 0, value = { incoming = Empty, node = { id = 0, label = ( 0, [ Atom "a", Neg (Atom "b"), Conj (Atom "a") (Atom "b"), Disj (Atom "a") (Atom "b"), Neg (Equi (Atom "a") (Atom "b")) ] ) }, outgoing = Leaf { key = 1, value = ( A, [ 2 ] ) } } }, prefix = { branchingBit = 1, prefixBits = 0 }, right = Leaf { key = 1, value = { incoming = Leaf { key = 0, value = ( A, [ 2 ] ) }, node = { id = 1, label = ( -1, [ Atom "a", Neg (Atom "b"), Disj (Atom "a") (Atom "b"), Neg (Equi (Atom "a") (Atom "b")), Atom "b" ] ) }, outgoing = Empty } }, size = 2 })
-
+{-| It generates the complete SemanticTableaux as a Tree, which is renderizable with representations methods.
 -}
 semanticTableau : SetPL -> PLSemanticTableau
 semanticTableau fs =
-    let
-        splSemanticTableauBuilder xs nid =
-            case splSearchContradiction xs of
-                Just _ ->
-                    ( [ Graph.Node nid ( -1, xs ) ], [] )
+    splSemanticTableauBuilder (uniqueConcatList [] fs) 0 INITR -1
+
+
+splSemanticTableauBuilder : SetPL -> Int -> STRule -> Int -> PLSemanticTableau
+splSemanticTableauBuilder xs nid rule parent =
+    case splSearchContradiction xs of
+        Just incons ->
+            GTree.inner { id = nid, fs = xs, parents = [ parent ], rule = rule } [ GTree.leaf { id = nid + 1, fs = [ Insat ], parents = List.map (\x -> 1 + x) incons, rule = IR } ]
+
+        Nothing ->
+            case splSearchDN xs of
+                Just ( i, f ) ->
+                    let
+                        newxs =
+                            splExpandDN xs f
+                    in
+                    let
+                        child =
+                            splSemanticTableauBuilder newxs (nid + 1) DNR (i + 1)
+                    in
+                    GTree.inner { id = nid, fs = xs, parents = [ parent ], rule = rule } [ child ]
 
                 Nothing ->
-                    let
-                        currentNode =
-                            Graph.Node nid ( 0, xs )
-                    in
-                    case splSearchDN xs of
+                    case splSearchAlpha xs of
                         Just ( i, f ) ->
                             let
-                                ( nodes, edges ) =
-                                    splSemanticTableauBuilder (splExpandDN xs f) (nid + 1)
+                                newxs =
+                                    splExpandAlpha xs f
                             in
-                            ( currentNode :: nodes, Graph.Edge nid (nid + 1) ( DN, [ i ] ) :: edges )
+                            let
+                                child =
+                                    splSemanticTableauBuilder newxs (nid + 1) AR (i + 1)
+                            in
+                            GTree.inner { id = nid, fs = xs, parents = [ parent ], rule = rule } [ child ]
 
                         Nothing ->
-                            case splSearchAlpha xs of
+                            case splSearchBeta xs of
                                 Just ( i, f ) ->
                                     let
-                                        ( nodes, edges ) =
-                                            splSemanticTableauBuilder (splExpandAlpha xs f) (nid + 1)
+                                        ( newxs1, newxs2 ) =
+                                            splExpandBeta xs f
                                     in
-                                    ( currentNode :: nodes, Graph.Edge nid (nid + 1) ( A, [ i ] ) :: edges )
+                                    let
+                                        child1 =
+                                            splSemanticTableauBuilder newxs1 (nid + 1) BR (i + 1)
+
+                                        child2 =
+                                            splSemanticTableauBuilder newxs2 (nid + 1) BR (i + 1)
+                                    in
+                                    GTree.inner { id = nid, fs = xs, parents = [ parent ], rule = rule } [ child1, child2 ]
 
                                 Nothing ->
-                                    case splSearchBeta xs of
-                                        Just ( i, f ) ->
-                                            let
-                                                expansion =
-                                                    splExpandBeta xs f
-                                            in
-                                            let
-                                                alt1 =
-                                                    Tuple.first expansion
+                                    GTree.inner { id = nid, fs = xs, parents = [ parent ], rule = rule } [ GTree.leaf { id = nid + 1, fs = xs, parents = [], rule = TR } ]
 
-                                                alt2 =
-                                                    Tuple.second expansion
-                                            in
-                                            let
-                                                ( nodes1, edges1 ) =
-                                                    splSemanticTableauBuilder alt1 (nid + 1)
-                                            in
-                                            let
-                                                nextid =
-                                                    nid + List.length nodes1 + 1
-                                            in
-                                            let
-                                                ( nodes2, edges2 ) =
-                                                    splSemanticTableauBuilder alt2 nextid
-                                            in
-                                            ( currentNode :: (nodes1 ++ nodes2), [ Graph.Edge nid (nid + 1) ( B, [ i ] ), Graph.Edge nid nextid ( B, [ i ] ) ] ++ edges1 ++ edges2 )
 
-                                        Nothing ->
-                                            ( [ Graph.Node nid ( 1, xs ) ], [] )
-    in
+{-| It extracts all the leaves removing duplicates.
+-}
+semanticTableauOpenLeaves : PLSemanticTableau -> List SetPL
+semanticTableauOpenLeaves st =
+    case GTree.root st of
+        Just ( label, [] ) ->
+            if label.rule == TR then
+                [ label.fs ]
+
+            else
+                []
+
+        Just ( _, children ) ->
+            LE.unique <| List.concat <| List.map semanticTableauOpenLeaves children
+
+        Nothing ->
+            []
+
+
+{-| It extracts all the leaves applying subsumption for simplification.
+-}
+semanticTableauRelevantLeaves : PLSemanticTableau -> List SetPL
+semanticTableauRelevantLeaves st =
     let
-        ( ns, es ) =
-            splSemanticTableauBuilder (uniqueConcatList [] fs) 0
+        subsumes l1 l2 =
+            List.all (\x -> List.member x l2) l1
+
+        subsumedBy l1 l2 =
+            List.all (\x -> List.member x l1) l2
     in
-    Graph.fromNodesAndEdges ns es
+    List.foldr
+        (\x ac ->
+            if not <| List.any (subsumedBy x) ac then
+                x :: List.filter (not << subsumes x) ac
+
+            else
+                ac
+        )
+        []
+    <|
+        semanticTableauOpenLeaves st
 
 
 {-| It extracts all the models from a semantic tableau.
@@ -445,24 +483,20 @@ semanticTableau fs =
 -}
 semanticTableauModels : PLSemanticTableau -> List Interpretation
 semanticTableauModels st =
-    let
-        symbs =
-            (Maybe.withDefault (Node 0 ( 0, [] )) <| List.head <| Graph.nodes st).label |> Tuple.second |> PL_SS.splSymbols
+    case GTree.root st of
+        Nothing ->
+            []
 
-        openLeaves =
-            List.foldr
-                (\x ac ->
-                    if Tuple.first x.label == 1 then
-                        Tuple.second x.label :: ac
-
-                    else
-                        ac
-                )
-                []
-            <|
-                Graph.nodes st
-    in
-    List.sort <| LE.unique <| List.concat <| List.map (\ls -> PL_SS.interpretationsFromSymbolsAndLiterals symbs ls) openLeaves
+        Just ( l, _ ) ->
+            let
+                symbs =
+                    l.fs |> PL_SS.splSymbols
+            in
+            List.sort <|
+                LE.unique <|
+                    List.concat <|
+                        List.map (\ls -> PL_SS.interpretationsFromSymbolsAndLiterals symbs ls) <|
+                            semanticTableauRelevantLeaves st
 
 
 
@@ -473,142 +507,248 @@ semanticTableauModels st =
 
 {-| It gives the String representation of a tableau.
 
-    splSemanticTableau fs4 |> splSemanticTableauToString == "Graph [Node 0 ({a, ¬ b, ( a ∧ b ), ( a ∨ b ), ¬ ( a ↔ b )}), Node 1 ({a, ¬ b, ( a ∨ b ), ¬ ( a ↔ b ), b}), Node 2 (×)] [Edge 1->2 (I (2, 5)), Edge 0->1 (α (3))]"
+    splSemanticTableau fs4 |> semanticTableauToString == "Graph [Node 0 ({a, ¬ b, ( a ∧ b ), ( a ∨ b ), ¬ ( a ↔ b )}), Node 1 ({a, ¬ b, ( a ∨ b ), ¬ ( a ↔ b ), b}), Node 2 (×)] [Edge 1->2 (I (2, 5)), Edge 0->1 (α (3))]"
 
 -}
 semanticTableauToString : PLSemanticTableau -> String
-semanticTableauToString t =
-    let
-        toStringNode =
-            \( i, fs2 ) ->
-                Just
-                    (if i == -2 then
-                        "×"
-
-                     else if i == 2 then
-                        "◯"
-
-                     else
-                        PL_SS.splToString fs2
-                    )
-
-        toStringEdge =
-            \( ftype, is ) ->
-                Just
-                    (case ftype of
-                        L ->
-                            "L"
-
-                        DN ->
-                            "dN (" ++ String.join ", " (List.map (\i -> String.fromInt (i + 1)) is) ++ ")"
-
-                        A ->
-                            "α (" ++ String.join ", " (List.map (\i -> String.fromInt (i + 1)) is) ++ ")"
-
-                        B ->
-                            "β (" ++ String.join ", " (List.map (\i -> String.fromInt (i + 1)) is) ++ ")"
-
-                        I ->
-                            "I (" ++ String.join ", " (List.map (\i -> String.fromInt (i + 1)) is) ++ ")"
-
-                        T ->
-                            "T"
-                    )
-    in
-    let
-        newLeaves =
-            List.indexedMap
-                (\j n ->
-                    let
-                        nid =
-                            n.id
-
-                        ( i, fs2 ) =
-                            n.label
-                    in
-                    ( Graph.Node (Graph.size t + j) ( 2 * i, [] )
-                    , Graph.Edge nid
-                        (Graph.size t + j)
-                        (if i == 1 then
-                            ( L, [] )
-
-                         else
-                            ( I, Maybe.withDefault [] (splSearchContradiction fs2) )
-                        )
-                    )
-                )
-                (List.filter (\n -> Tuple.first n.label /= 0) <| Graph.nodes t)
-    in
-    Graph.toString toStringNode toStringEdge <| Graph.fromNodesAndEdges (Graph.nodes t ++ List.map Tuple.first newLeaves) (Graph.edges t ++ List.map Tuple.second newLeaves)
+semanticTableauToString =
+    tableauToStringAux 0
 
 
-{-| It gives a String representation of a Tabbleau using DOT notation, which is renderizable with a GraphViz viewer.
+tableauToStringAux : Int -> PLSemanticTableau -> String
+tableauToStringAux indent t =
+    case GTree.root t of
+        Just ( l, ch ) ->
+            String.repeat indent "   " ++ tableauNodeToString l ++ (String.join "" <| List.map (tableauToStringAux (indent + 1)) ch)
 
-    splSemanticTableau fs4 |> splSemanticTableauToDOT == "digraph G {\n  rankdir=TB\n  graph []\n  node [shape=box, color=black]\n  edge [dir=none, color=blue, fontcolor=blue]\n\n  0 -> 1 [label=\"α (3)\"]\n  1 -> 2 [label=\"I (2, 5)\"]\n\n  0 [label=\"{a, ¬ b, ( a ∧ b ), ( a ∨ b ), ¬ ( a ↔ b )}\"]\n  1 [label=\"{a, ¬ b, ( a ∨ b ), ¬ ( a ↔ b ), b}\"]\n  2 [label=\"×\"]\n}"
+        Nothing ->
+            ""
 
+
+tableauNodeToString : { id : Int, fs : SetPL, parents : List Int, rule : STRule } -> String
+tableauNodeToString ni =
+    case ni.rule of
+        AR ->
+            String.fromInt ni.id
+                ++ ":  "
+                ++ PL_SS.splToString ni.fs
+                ++ "     ["
+                ++ "𝛼("
+                ++ (String.join "," <|
+                        List.map String.fromInt ni.parents
+                   )
+                ++ ")]\n\n"
+
+        BR ->
+            String.fromInt ni.id
+                ++ ":  "
+                ++ PL_SS.splToString ni.fs
+                ++ "     ["
+                ++ "𝛽("
+                ++ (String.join "," <|
+                        List.map String.fromInt ni.parents
+                   )
+                ++ ")]\n\n"
+
+        DNR ->
+            String.fromInt ni.id
+                ++ ":  "
+                ++ PL_SS.splToString ni.fs
+                ++ "     ["
+                ++ "𝒹𝒩("
+                ++ (String.join "," <|
+                        List.map String.fromInt ni.parents
+                   )
+                ++ ")]\n\n"
+
+        IR ->
+            PL_SS.splToString ni.fs
+                ++ "     ["
+                ++ "→←("
+                ++ (String.join "," <|
+                        List.map String.fromInt ni.parents
+                   )
+                ++ ")]\n\n"
+
+        TR ->
+            "◯     []\n\n"
+
+        INITR ->
+            String.fromInt ni.id
+                ++ ":  "
+                ++ PL_SS.splToString ni.fs
+                ++ "     [initial]\n\n"
+
+
+{-| It gives a JSON object with the content of the tableau.
+-}
+semanticTableauToJSON : PLSemanticTableau -> Value
+semanticTableauToJSON t =
+    case GTree.root t of
+        Just ( l, ch ) ->
+            let
+                children =
+                    JSONE.list semanticTableauToJSON ch
+            in
+            semanticTableauNodeToJSON l children
+
+        Nothing ->
+            JSONE.null
+
+
+semanticTableauNodeToJSON : { id : Int, fs : SetPL, parents : List Int, rule : STRule } -> Value -> Value
+semanticTableauNodeToJSON ni children =
+    case ni.rule of
+        AR ->
+            JSONE.object
+                [ ( "name", JSONE.int ni.id )
+                , ( "label", JSONE.string <| PL_SS.splToString ni.fs )
+                , ( "xlabel"
+                  , JSONE.string <|
+                        "𝛼("
+                            ++ (String.join "," <|
+                                    List.map String.fromInt ni.parents
+                               )
+                            ++ ")"
+                  )
+                , ( "children", children )
+                ]
+
+        BR ->
+            JSONE.object
+                [ ( "name", JSONE.int ni.id )
+                , ( "label", JSONE.string <| PL_SS.splToString ni.fs )
+                , ( "xlabel"
+                  , JSONE.string <|
+                        "𝛽("
+                            ++ (String.join "," <|
+                                    List.map String.fromInt ni.parents
+                               )
+                            ++ ")"
+                  )
+                , ( "children", children )
+                ]
+
+        DNR ->
+            JSONE.object
+                [ ( "name", JSONE.int ni.id )
+                , ( "label", JSONE.string <| PL_SS.splToString ni.fs )
+                , ( "xlabel"
+                  , JSONE.string <|
+                        "𝒹𝒩("
+                            ++ (String.join "," <|
+                                    List.map String.fromInt ni.parents
+                               )
+                            ++ ")"
+                  )
+                , ( "children", children )
+                ]
+
+        IR ->
+            JSONE.object
+                [ ( "name", JSONE.int ni.id )
+                , ( "label", JSONE.string <| PL_SS.fplToString Insat )
+                , ( "xlabel"
+                  , JSONE.string <|
+                        "("
+                            ++ (String.join "," <|
+                                    List.map String.fromInt ni.parents
+                               )
+                            ++ ")"
+                  )
+                , ( "children", children )
+                ]
+
+        TR ->
+            JSONE.object
+                [ ( "name", JSONE.int ni.id )
+                , ( "label", JSONE.string "◯" )
+                , ( "xlabel", JSONE.string "" )
+                , ( "children", children )
+                ]
+
+        INITR ->
+            JSONE.object
+                [ ( "name", JSONE.int ni.id )
+                , ( "label", JSONE.string <| PL_SS.splToString ni.fs )
+                , ( "xlabel", JSONE.string "initial" )
+                , ( "children", children )
+                ]
+
+
+{-| It gives a DOT representation for the tableau.
 -}
 semanticTableauToDOT : PLSemanticTableau -> String
 semanticTableauToDOT t =
-    let
-        toStringNode =
-            \( i, fs2 ) ->
-                Just <|
-                    if i == -2 then
-                        "🗴"
+    "digraph{" ++ (Tuple.first <| semanticTableauNodeToDOTAux 0 -1 t) ++ "}"
 
-                    else if i == 2 then
-                        "⭘"
 
-                    else
-                        PL_SS.splToString fs2
+semanticTableauNodeToDOTAux : Int -> Int -> PLSemanticTableau -> ( String, Int )
+semanticTableauNodeToDOTAux gid p t =
+    case GTree.root t of
+        Just ( l, ch ) ->
+            semanticTableauNodeToDOTAux2 gid p l ch
 
-        toStringEdge =
-            \( ftype, is ) ->
-                Just <|
-                    case ftype of
-                        L ->
-                            "L"
+        Nothing ->
+            ( "", -1 )
 
-                        DN ->
-                            "dN (" ++ String.join ", " (List.map (\i -> String.fromInt (i + 1)) is) ++ ")"
 
-                        A ->
-                            "α (" ++ String.join ", " (List.map (\i -> String.fromInt (i + 1)) is) ++ ")"
+semanticTableauNodeToDOTAux2 : Int -> Int -> { id : Int, fs : SetPL, parents : List Int, rule : STRule } -> List (Tree { id : Int, fs : SetPL, parents : List Int, rule : STRule }) -> ( String, Int )
+semanticTableauNodeToDOTAux2 gid p ni children =
+    case children of
+        [ c ] ->
+            let
+                ( res, lgid ) =
+                    semanticTableauNodeToDOTAux (gid + 1) gid c
+            in
+            case ni.rule of
+                AR ->
+                    ( String.fromInt gid ++ " [label=\"" ++ PL_SS.splToString ni.fs ++ "\"];\n" ++ (String.fromInt p ++ " -> " ++ String.fromInt gid ++ " [label=\"" ++ ("𝛼(" ++ (String.join "," <| List.map String.fromInt ni.parents) ++ ")") ++ "\"];") ++ res, lgid )
 
-                        B ->
-                            "β (" ++ String.join ", " (List.map (\i -> String.fromInt (i + 1)) is) ++ ")"
+                BR ->
+                    ( String.fromInt gid ++ " [label=\"" ++ PL_SS.splToString ni.fs ++ "\"];\n" ++ (String.fromInt p ++ " -> " ++ String.fromInt gid ++ " [label=\"" ++ ("𝛽(" ++ (String.join "," <| List.map String.fromInt ni.parents) ++ ")") ++ "\"];") ++ res, lgid )
 
-                        I ->
-                            "I (" ++ String.join ", " (List.map (\i -> String.fromInt (i + 1)) is) ++ ")"
+                DNR ->
+                    ( String.fromInt gid ++ " [label=\"" ++ PL_SS.splToString ni.fs ++ "\"];\n" ++ (String.fromInt p ++ " -> " ++ String.fromInt gid ++ " [label=\"" ++ ("𝒹𝒩(" ++ (String.join "," <| List.map String.fromInt ni.parents) ++ ")") ++ "\"];") ++ res, lgid )
 
-                        T ->
-                            "T"
+                INITR ->
+                    ( String.fromInt gid ++ " [label=\"" ++ PL_SS.splToString ni.fs ++ "\"];\n" ++ res, lgid )
 
-        myStyles =
-            { defaultStyles | node = "shape=box, color=white, fontcolor=black", edge = "dir=none, color=blue, fontcolor=blue" }
-    in
-    let
-        newLeaves =
-            List.indexedMap
-                (\j n ->
-                    let
-                        nid =
-                            n.id
+                _ ->
+                    ( "", -2 )
 
-                        ( i, fs2 ) =
-                            n.label
-                    in
-                    ( Graph.Node (Graph.size t + j) ( 2 * i, [] )
-                    , Graph.Edge nid
-                        (Graph.size t + j)
-                        (if i == 1 then
-                            ( L, [] )
+        [ c1, c2 ] ->
+            let
+                ( res1, lgid1 ) =
+                    semanticTableauNodeToDOTAux (gid + 1) gid c1
+            in
+            let
+                ( res2, lgid2 ) =
+                    semanticTableauNodeToDOTAux (lgid1 + 1) gid c2
+            in
+            case ni.rule of
+                AR ->
+                    ( String.fromInt gid ++ " [label=\"" ++ PL_SS.splToString ni.fs ++ "\"];\n" ++ (String.fromInt p ++ " -> " ++ String.fromInt gid ++ " [label=\"" ++ ("𝛼(" ++ (String.join "," <| List.map String.fromInt ni.parents) ++ ")") ++ "\"];") ++ res1 ++ "\n" ++ res2, lgid2 )
 
-                         else
-                            ( I, Maybe.withDefault [] (splSearchContradiction fs2) )
-                        )
-                    )
-                )
-                (List.filter (\n -> Tuple.first n.label /= 0) <| Graph.nodes t)
-    in
-    String.replace "\n" "" <| String.replace "\"" ">" <| String.replace "=\"" "=<" <| Graph.DOT.outputWithStyles myStyles toStringNode toStringEdge <| Graph.fromNodesAndEdges (Graph.nodes t ++ List.map Tuple.first newLeaves) (Graph.edges t ++ List.map Tuple.second newLeaves)
+                BR ->
+                    ( String.fromInt gid ++ " [label=\"" ++ PL_SS.splToString ni.fs ++ "\"];\n" ++ (String.fromInt p ++ " -> " ++ String.fromInt gid ++ " [label=\"" ++ ("𝛽(" ++ (String.join "," <| List.map String.fromInt ni.parents) ++ ")") ++ "\"];") ++ res1 ++ "\n" ++ res2, lgid2 )
+
+                DNR ->
+                    ( String.fromInt gid ++ " [label=\"" ++ PL_SS.splToString ni.fs ++ "\"];\n" ++ (String.fromInt p ++ " -> " ++ String.fromInt gid ++ " [label=\"" ++ ("𝒹𝒩(" ++ (String.join "," <| List.map String.fromInt ni.parents) ++ ")") ++ "\"];") ++ res1 ++ "\n" ++ res2, lgid2 )
+
+                INITR ->
+                    ( String.fromInt gid ++ " [label=\"" ++ PL_SS.splToString ni.fs ++ "\"];\n" ++ res1 ++ "\n" ++ res2, lgid2 )
+
+                _ ->
+                    ( "", -2 )
+
+        _ ->
+            case ni.rule of
+                IR ->
+                    ( String.fromInt gid ++ " [label=\"" ++ PL_SS.fplToString Insat ++ "\"];\n" ++ (String.fromInt p ++ " -> " ++ String.fromInt gid ++ " [label=\"" ++ (String.join "→←" <| List.map String.fromInt ni.parents) ++ "\"];"), gid )
+
+                TR ->
+                    ( String.fromInt gid ++ " [label=\"◯\"];\n" ++ (String.fromInt p ++ " -> " ++ String.fromInt gid), gid )
+
+                _ ->
+                    ( "", -2 )

@@ -2,7 +2,7 @@ module LogicUS.PL.SyntaxSemantics exposing
     ( PSymb, FormulaPL(..), Literal, SetPL, Interpretation
     , fplIsLiteral, fplIsPositiveLiteral, fplIsNegativeLiteral, fplNegation, fplSymbols, fplFormTree, fplValuation, fplInterpretations, fplModels, fplCountermodels, fplModelsCountermodels, fplTruthTable, fplSatisfiability, fplValidity, fplUnsatisfiability
     , splSymbols, splValuation, splInterpretations, splModels, splCountermodels, splModelsCountermodels, splTruthTable, splSatisfiability, splUnsatisfiability, logicalConsecuence, logicalConsecuence2
-    , fplReadFromString, fplReadExtraction, fplToInputString
+    , fplReadFromString, fplReadExtraction, fplRead, splRead, fplToInputString
     , interpretationReadFromString, interpretationReadExtraction
     , fplToString, fplToMathString, fplTruthTableString, fplTruthTableMathString, fplFormTreeToString, fplFormTreeToDOT
     , splToString, splToMathString, splToMathString2, splTruthTableString, splTruthTableMathString, splCompactTruthTableString, splCompactTruthTableMathString
@@ -30,7 +30,7 @@ module LogicUS.PL.SyntaxSemantics exposing
 
 # Parsing PL Formulas
 
-@docs fplReadFromString, fplReadExtraction, fplToInputString
+@docs fplReadFromString, fplReadExtraction, fplRead, splRead, fplToInputString
 
 
 # Parsing Interpretations
@@ -797,6 +797,29 @@ fplReadExtraction ( fpl, _, _ ) =
     Maybe.withDefault Insat fpl
 
 
+{-| It reads the formula from a string. It returns the Formula if the string si correct, otherwise it returns Insat.
+-}
+fplRead : String -> FormulaPL
+fplRead =
+    fplReadExtraction << fplReadFromString
+
+
+{-| It reads a set of formulas from a string. Each string that corresponds to each of the formulas of the set must be ended by a point `.`
+(the last formula can, optionally, not be ended by a point).
+-}
+splRead : String -> SetPL
+splRead fs =
+    let
+        fsRead =
+            List.map fplReadFromString <| List.filter (not << String.isEmpty << AUX.cleanSpaces) <| String.split "." fs
+    in
+    if List.any (\( mf, _, _ ) -> mf == Nothing) fsRead then
+        []
+
+    else
+        List.map fplReadExtraction fsRead
+
+
 {-| It gives the corresponding input syntax of a formula
 
     fplToInputString f3 == "((p|q)->r)"
@@ -888,12 +911,20 @@ operator =
     Parser.oneOf
         [ Parser.succeed AndOp
             |. Parser.symbol "&"
+        , Parser.succeed AndOp
+            |. Parser.symbol "∧"
         , Parser.succeed OrOp
             |. Parser.symbol "|"
+        , Parser.succeed OrOp
+            |. Parser.symbol "∨"
         , Parser.succeed ImplOp
             |. Parser.symbol "->"
+        , Parser.succeed ImplOp
+            |. Parser.symbol "→"
         , Parser.succeed EquivOp
             |. Parser.symbol "<->"
+        , Parser.succeed EquivOp
+            |. Parser.symbol "↔"
         ]
 
 
@@ -923,8 +954,12 @@ fplParserAux =
             |= Parser.lazy (\_ -> fplParserAux)
         , Parser.succeed Insat
             |. Parser.symbol "!F"
+        , Parser.succeed Insat
+            |. Parser.symbol "⊥"
         , Parser.succeed Taut
             |. Parser.symbol "!T"
+        , Parser.succeed Taut
+            |. Parser.symbol "⊤"
         , Parser.succeed Atom
             |= plVarParser
         ]
@@ -1056,19 +1091,119 @@ fplToString f =
             pname ++ (AUX.replaceBySubscript <| (String.join "," <| List.map String.fromInt pindices))
 
         Neg p ->
-            "¬ " ++ fplToString p
+            case p of
+                Conj _ _ ->
+                    "¬ (" ++ fplToString p ++ ")"
+
+                Disj _ _ ->
+                    "¬ (" ++ fplToString p ++ ")"
+
+                Impl _ _ ->
+                    "¬ (" ++ fplToString p ++ ")"
+
+                Equi _ _ ->
+                    "¬ (" ++ fplToString p ++ ")"
+
+                _ ->
+                    "¬ " ++ fplToString p
 
         Conj p q ->
-            "( " ++ fplToString p ++ " ∧ " ++ fplToString q ++ " )"
+            let
+                lhs =
+                    case p of
+                        Disj _ _ ->
+                            "(" ++ fplToString p ++ ")"
+
+                        Impl _ _ ->
+                            "(" ++ fplToString p ++ ")"
+
+                        Equi _ _ ->
+                            "(" ++ fplToString p ++ ")"
+
+                        _ ->
+                            fplToString p
+
+                rhs =
+                    case q of
+                        Disj _ _ ->
+                            "(" ++ fplToString q ++ ")"
+
+                        Impl _ _ ->
+                            "(" ++ fplToString q ++ ")"
+
+                        Equi _ _ ->
+                            "(" ++ fplToString q ++ ")"
+
+                        _ ->
+                            fplToString q
+            in
+            lhs ++ " ∧ " ++ rhs
 
         Disj p q ->
-            "( " ++ fplToString p ++ " ∨ " ++ fplToString q ++ " )"
+            let
+                lhs =
+                    case p of
+                        Impl _ _ ->
+                            "(" ++ fplToString p ++ ")"
+
+                        Equi _ _ ->
+                            "(" ++ fplToString p ++ ")"
+
+                        _ ->
+                            fplToString p
+
+                rhs =
+                    case q of
+                        Impl _ _ ->
+                            "(" ++ fplToString q ++ ")"
+
+                        Equi _ _ ->
+                            "(" ++ fplToString q ++ ")"
+
+                        _ ->
+                            fplToString q
+            in
+            lhs ++ " ∨ " ++ rhs
 
         Impl p q ->
-            "( " ++ fplToString p ++ " → " ++ fplToString q ++ " )"
+            let
+                lhs =
+                    case p of
+                        Impl _ _ ->
+                            "(" ++ fplToString p ++ ")"
+
+                        Equi _ _ ->
+                            "(" ++ fplToString p ++ ")"
+
+                        _ ->
+                            fplToString p
+
+                rhs =
+                    case q of
+                        Equi _ _ ->
+                            "(" ++ fplToString q ++ ")"
+
+                        _ ->
+                            fplToString q
+            in
+            lhs ++ " → " ++ rhs
 
         Equi p q ->
-            "( " ++ fplToString p ++ " ↔ " ++ fplToString q ++ " )"
+            let
+                lhs =
+                    case p of
+                        Equi _ _ ->
+                            "(" ++ fplToString p ++ ")"
+
+                        _ ->
+                            fplToString p
+
+                rhs =
+                    case q of
+                        _ ->
+                            fplToString q
+            in
+            lhs ++ " ↔ " ++ rhs
 
         Insat ->
             "⊥"
@@ -1087,29 +1222,132 @@ fplToString f =
 fplToMathString : FormulaPL -> String
 fplToMathString f =
     case f of
-        Atom ( psymb, pindices ) ->
-            psymb ++ "_{" ++ (String.join "," <| List.map String.fromInt pindices) ++ "}"
+        Atom ( pname, [] ) ->
+            pname
+
+        Atom ( pname, pindices ) ->
+            pname ++ "_{" ++ (String.join "," <| List.map String.fromInt pindices) ++ "}"
 
         Neg p ->
-            "\\neg " ++ fplToMathString p
+            case p of
+                Conj _ _ ->
+                    " \\neg \\left( " ++ fplToMathString p ++ " \\right) "
+
+                Disj _ _ ->
+                    " \\neg \\left( " ++ fplToMathString p ++ " \\right) "
+
+                Impl _ _ ->
+                    " \\neg \\left( " ++ fplToMathString p ++ " \\right) "
+
+                Equi _ _ ->
+                    " \\neg \\left( " ++ fplToMathString p ++ " \\right) "
+
+                _ ->
+                    " \\neg " ++ fplToMathString p
 
         Conj p q ->
-            "( " ++ fplToMathString p ++ " \\wedge " ++ fplToMathString q ++ " )"
+            let
+                lhs =
+                    case p of
+                        Disj _ _ ->
+                            " \\left( " ++ fplToMathString p ++ " \\right) "
+
+                        Impl _ _ ->
+                            " \\left( " ++ fplToMathString p ++ " \\right) "
+
+                        Equi _ _ ->
+                            " \\left( " ++ fplToMathString p ++ " \\right) "
+
+                        _ ->
+                            fplToMathString p
+
+                rhs =
+                    case q of
+                        Disj _ _ ->
+                            " \\left( " ++ fplToMathString q ++ " \\right) "
+
+                        Impl _ _ ->
+                            " \\left( " ++ fplToMathString q ++ " \\right) "
+
+                        Equi _ _ ->
+                            " \\left( " ++ fplToMathString q ++ " \\right) "
+
+                        _ ->
+                            fplToMathString q
+            in
+            lhs ++ " \\wedge " ++ rhs
 
         Disj p q ->
-            "( " ++ fplToMathString p ++ " \\vee " ++ fplToMathString q ++ " )"
+            let
+                lhs =
+                    case p of
+                        Impl _ _ ->
+                            " \\left( " ++ fplToMathString p ++ " \\right) "
+
+                        Equi _ _ ->
+                            " \\left( " ++ fplToMathString p ++ " \\right) "
+
+                        _ ->
+                            fplToMathString p
+
+                rhs =
+                    case q of
+                        Impl _ _ ->
+                            " \\left( " ++ fplToMathString q ++ " \\right) "
+
+                        Equi _ _ ->
+                            " \\left( " ++ fplToMathString q ++ " \\right) "
+
+                        _ ->
+                            fplToMathString q
+            in
+            lhs ++ " \\vee " ++ rhs
 
         Impl p q ->
-            "( " ++ fplToMathString p ++ "\\rightarrow " ++ fplToMathString q ++ " )"
+            let
+                lhs =
+                    case p of
+                        Impl _ _ ->
+                            " \\left( " ++ fplToMathString p ++ " \\right) "
+
+                        Equi _ _ ->
+                            " \\left( " ++ fplToMathString p ++ " \\right) "
+
+                        _ ->
+                            fplToMathString p
+
+                rhs =
+                    case q of
+                        Equi _ _ ->
+                            " \\left( " ++ fplToMathString q ++ " \\right) "
+
+                        _ ->
+                            fplToMathString q
+            in
+            lhs ++ " \\rightarrow " ++ rhs
 
         Equi p q ->
-            "( " ++ fplToMathString p ++ "\\leftrightarrow " ++ fplToMathString q ++ " )"
+            let
+                lhs =
+                    case p of
+                        Equi _ _ ->
+                            " \\left( " ++ fplToMathString p ++ " \\right) "
+
+                        _ ->
+                            fplToMathString p
+
+                rhs =
+                    case q of
+                        _ ->
+                            fplToMathString q
+            in
+            lhs ++ " \\leftrightarrow " ++ rhs
 
         Insat ->
-            "\\perp"
+            " \\perp "
 
         Taut ->
-            "\\top"
+            " \\top "
 
 
 {-| It generates the String of Set of PL formulas using unicode symbols.

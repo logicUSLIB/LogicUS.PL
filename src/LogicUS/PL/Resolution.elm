@@ -4,7 +4,7 @@ module LogicUS.PL.Resolution exposing
     , csplSaturationResolution, csplRegularResolution
     , csplSCFResolution, csplSCFLinearResolution, csplSCFPositiveResolution, csplSCFNegativeResolution
     , csplSCFUnitaryResolution, csplSCFByEntriesResolution
-    , resolutionProcessListToMathString, resolutionProcessListToString, resolutionTableauToString, resolutionTableauToDOT
+    , resolutionProcessListToMathString, resolutionProcessListToString, resolutionProcessListToStringTable, resolutionTableauToString, resolutionTableauToDOT, resolutionTableauToDOTStyled
     )
 
 {-| The module provides the tools for aplying the differents resolution strategies to a set of propositional clauses for verifying its unfeasibility.
@@ -37,7 +37,7 @@ module LogicUS.PL.Resolution exposing
 
 # Resolution Tableau Representation
 
-@docs resolutionProcessListToMathString, resolutionProcessListToString, resolutionTableauToString, resolutionTableauToDOT
+@docs resolutionProcessListToMathString, resolutionProcessListToString, resolutionProcessListToStringTable, resolutionTableauToString, resolutionTableauToDOT, resolutionTableauToDOTStyled
 
 -}
 
@@ -1169,11 +1169,18 @@ csplSCFByEntriesResolution clauses =
 --==============--
 
 
-{-| It gives a string representation for a list of clauseSets
+{-| It gives a string representation for a list of clauseSets from resolution process
 -}
 resolutionProcessListToString : List ClausePLSet -> String
 resolutionProcessListToString hist =
     String.join "\n" <| List.map PL_CL.csplToString hist
+
+
+{-| It gives a table as a string representation for a list of clauseSets from resolution process
+-}
+resolutionProcessListToStringTable : List ClausePLSet -> String
+resolutionProcessListToStringTable hist =
+    "step; set of clauses \n" ++ (String.join "\n" <| List.indexedMap (\i cs -> String.fromInt i ++ ";" ++ PL_CL.csplToString cs) hist)
 
 
 {-| It gives a string representation in Latex notation for a list of clauseSets. It must be displayed in a math environment
@@ -1203,8 +1210,37 @@ resolutionTableauToString g =
 resolutionTableauToDOT : ResolutionTableau -> String
 resolutionTableauToDOT g =
     let
+        toStringNode =
+            \( _, cs ) -> Just <| PL_CL.cplToString cs
+
+        toStringEdge =
+            \l -> Just ((PL_SS.fplToString << PL_CL.clauseLitToLiteral) l)
+
+        initialNodes =
+            String.join ";" <|
+                List.map String.fromInt <|
+                    List.foldl
+                        (\x ac ->
+                            if Tuple.first x.label then
+                                ac ++ [ x.id ]
+
+                            else
+                                ac
+                        )
+                        []
+                        (Graph.nodes g)
+    in
+    String.replace "\n" "" <| String.replace "\n}" ("\n\n  {rank=same; " ++ initialNodes ++ ";}\n}") <| Graph.DOT.output toStringNode toStringEdge g
+
+
+{-| Express a Resolution Tableau as a string in DOT format that is viewable with a GraphViz Render including some styles.
+**Note:** If you are using elm repl, before introducing the code you must replace _\\n_ by _\\n_ and _\\"_ by _"_ in a simple text editor.
+-}
+resolutionTableauToDOTStyled : ResolutionTableau -> String
+resolutionTableauToDOTStyled g =
+    let
         myStyles =
-            { defaultStyles | node = "shape=box, color=white, fontcolor=black", edge = "dir=none, color=blue, fontcolor=blue" }
+            { defaultStyles | node = "shape=Mrecord, fillcolor=\"#c1f6ff\", style=filled, fontcolor=\"#1a2935\", color=\"#1a2935\"", edge = "color=\"#1a2935\", fontcolor=\"#1a2935\"" }
 
         toStringNode =
             \( _, cs ) -> Just <| PL_CL.cplToString cs
