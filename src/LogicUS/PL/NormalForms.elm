@@ -13,7 +13,7 @@ module LogicUS.PL.NormalForms exposing (fplContainsEquiv, fplContainsDisj, fplCo
 --  IMPORTS  --
 --===========--
 
-import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
+import LogicUS.PL.AuxiliarFunctions exposing (uniqueConcatList)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), Interpretation, SetPL)
 
 
@@ -247,10 +247,10 @@ fplRemoveAllImpl f =
 
     It interiorizes the negations by applying De Morgan's laws where appropriate
 
-    f5 = fplInteriorizeAllNeg f2
+    f5 = fpltoNNF f2
     f5 == Disj (Disj (Neg (Atom "p")) (Disj (Neg (Atom "q")) (Neg (Atom "r")))) (Disj (Conj (Atom "p") (Atom "q")) (Atom "r"))
 
-    f6 = fplInteriorizeAllNeg f4
+    f6 = fplToNNF f4
     f6 == Disj (Conj (Atom "p") (Conj (Atom "q") (Neg (Atom "r")))) (Conj (Disj (Neg (Atom "q")) (Atom "r")) (Neg (Atom "p")))
 
 -}

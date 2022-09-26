@@ -1,7 +1,7 @@
 module LogicUS.PL.HornRS exposing
     ( HornFact, HornRule, HornKB
-    , FwChRow, FwChResult, forwardChaining1, forwardChaining2, forwardChainingResultToMDString
-    , BwChRow, BwChResult, backwardChaining1, backwardChainingResultToMDString
+    , FwChRow, FwChResult, forwardChaining1, forwardChaining2, forwardChainingResultToString, forwardChainingResultToMDString
+    , BwChRow, BwChResult, backwardChaining1, backwardChainingResultToString, backwardChainingResultToMDString
     , hornFactToFPL, hornKBToSPL, hornRuleToFPL, hornRulesToSPL, hornFactToClause, hornKBToClauses, hornRuleToClause, hornRulesToClauses
     , hornFactReadFromString, hornFactReadExtraction, hornFactToInputString, hornKBReadFromString, hornKBReadExtraction, hornKBToInputString, hornRuleReadFromString, hornRuleReadExtraction, hornRuleToInputString, hornRulesReadFromString, hornRulesReadExtraction, hornRulesToInputString
     , hornFactToString, hornFactToMathString, hornKBToStringComma, hornKBToStringWedge, hornKBToMathStringComma, hornKBToMathStringWedge, hornRuleToString, hornRuleToMathString, hornRulesToString, hornRulesToMathString
@@ -17,12 +17,12 @@ module LogicUS.PL.HornRS exposing
 
 # HRS Deductions I: Forward Chaining
 
-@docs FwChRow, FwChResult, forwardChaining1, forwardChaining2, forwardChainingResultToMDString
+@docs FwChRow, FwChResult, forwardChaining1, forwardChaining2, forwardChainingResultToString, forwardChainingResultToMDString
 
 
 # HRS Deductions II: Backward Chaining
 
-@docs BwChRow, BwChResult, backwardChaining1, backwardChainingResultToMDString
+@docs BwChRow, BwChResult, backwardChaining1, backwardChainingResultToString, backwardChainingResultToMDString
 
 
 # HRS Trasformations
@@ -45,7 +45,7 @@ module LogicUS.PL.HornRS exposing
 -- IMPORTS --
 --=========--
 
-import LogicUS.AUX.AuxiliarFunctions as AUX
+import LogicUS.PL.AuxiliarFunctions as AUX
 import LogicUS.PL.Clauses as PL_CL exposing (ClausePL, ClausePLSet)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), PSymb, SetPL)
 import Parser exposing ((|.), (|=), Parser, Trailing(..))
@@ -201,7 +201,7 @@ forwardChainingAux2 avRules kb goal step =
         ( res, row :: tableTail )
 
 
-{-| It generates a markdown string (includinf latex notation) of the result of a forwarding chaining execution.
+{-| It generates a markdown string (including latex notation) of the result of a forwarding chaining execution.
 -}
 forwardChainingResultToMDString : FwChResult -> String
 forwardChainingResultToMDString res =
@@ -247,6 +247,57 @@ forwardChainingResultToMDString res =
             AUX.fromListToTableLatex (String.repeat 5 "|c" ++ "|") [ [ "Step", "Knowledge \\, Base", "Available \\, Rules", "Shooted \\, Rules", "Deductions" ] ] (List.map fchrowToTableMathString res.table) []
     in
     initialfacts ++ "\n" ++ rules ++ "\n" ++ goal ++ "\n" ++ result ++ "\n" ++ "$$" ++ table ++ "$$"
+
+
+{-| It generates two tables in a list with the result and the process of a forwarding chaining execution.
+-}
+forwardChainingResultToString : FwChResult -> List String
+forwardChainingResultToString res =
+    let
+        fchrowToTableString row =
+            String.join ";" <|
+                [ String.fromInt row.step
+                , hornKBToStringComma row.kb
+                , if List.isEmpty row.avRules then
+                    "-"
+
+                  else
+                    String.join ", " <| List.map (\i -> "R" ++ (AUX.replaceBySubscript <| String.fromInt (i + 1))) row.avRules
+                , if List.isEmpty row.shRules then
+                    "-"
+
+                  else
+                    String.join ", " <| List.map (\i -> "R" ++ (AUX.replaceBySubscript <| String.fromInt (i + 1))) row.shRules
+                , if Set.isEmpty row.newFacts then
+                    "-"
+
+                  else
+                    hornKBToStringComma row.newFacts
+                ]
+    in
+    let
+        initialfacts =
+            String.join ";" <| [ "Initial facts", hornKBToStringWedge res.initialKB ]
+
+        rules =
+            String.join ";" <| [ "Rules", hornRulesToString res.rules ]
+
+        goal =
+            String.join ";" <| [ "Goal", hornFactToString res.goal ]
+
+        result =
+            String.join ";" <|
+                [ "RESULT"
+                , if res.res then
+                    "TRUE"
+
+                  else
+                    "FALSE"
+                ]
+    in
+    [ initialfacts ++ "\n" ++ rules ++ "\n" ++ goal ++ "\n" ++ result
+    , String.join "\n" <| "Step;Knowledge Base;Available Rules;Shooted Rules;Deductions" :: List.map fchrowToTableString res.table
+    ]
 
 
 
@@ -472,6 +523,99 @@ backwardChainingResultToMDString res =
     initialfacts ++ "\n" ++ rules ++ "\n" ++ goal ++ "\n" ++ result ++ "\n" ++ "$$" ++ table ++ "$$"
 
 
+{-| It generates two tables in a list with the result and the process of a backwarding chaining execution.
+-}
+backwardChainingResultToString : BwChResult -> List String
+backwardChainingResultToString res =
+    let
+        bchrowToTableString row =
+            String.join ";" <|
+                [ String.fromInt row.step
+                , if List.isEmpty row.opened then
+                    "-"
+
+                  else
+                    String.join ", " <|
+                        List.map
+                            (\( ncancel, gs ) ->
+                                if ncancel then
+                                    "{" ++ hornKBToStringComma gs ++ "}"
+
+                                else
+                                    "<del>{" ++ hornKBToStringComma gs ++ "}</del>"
+                            )
+                            row.opened
+                , Maybe.withDefault "-" <| Maybe.map (\x -> "{" ++ hornKBToStringComma x ++ "}") row.currentNode
+                , Maybe.withDefault "-" <| Maybe.map hornFactToString row.goal
+                , if List.isEmpty row.descendents then
+                    "-"
+
+                  else
+                    String.join ", " <|
+                        List.map
+                            (\( ncancel, ri, gs ) ->
+                                if ncancel then
+                                    " (R"
+                                        ++ (AUX.replaceBySubscript <| String.fromInt (ri + 1))
+                                        ++ ", {"
+                                        ++ (String.join "," <|
+                                                List.map
+                                                    (\( nf, g ) ->
+                                                        if nf then
+                                                            hornFactToString g
+
+                                                        else
+                                                            "<b>" ++ hornFactToString g ++ "</b>"
+                                                    )
+                                                    gs
+                                           )
+                                        ++ "})"
+
+                                else
+                                    "<del> (R"
+                                        ++ (AUX.replaceBySubscript <| String.fromInt (ri + 1))
+                                        ++ ", {"
+                                        ++ (String.join "," <|
+                                                List.map
+                                                    (\( nf, g ) ->
+                                                        if nf then
+                                                            hornFactToString g
+
+                                                        else
+                                                            "<b>" ++ hornFactToString g ++ "</b>"
+                                                    )
+                                                    gs
+                                           )
+                                        ++ "})</del>"
+                            )
+                            row.descendents
+                ]
+    in
+    let
+        initialfacts =
+            String.join ";" <| [ "Initial facts", hornKBToStringWedge res.initialKB ]
+
+        rules =
+            String.join ";" <| [ "Rules", hornRulesToString res.rules ]
+
+        goal =
+            String.join ";" <| [ "Goal", hornFactToString res.goal ]
+
+        result =
+            String.join ";" <|
+                [ "RESULT"
+                , if res.res then
+                    "TRUE"
+
+                  else
+                    "FALSE"
+                ]
+    in
+    [ initialfacts ++ "\n" ++ rules ++ "\n" ++ goal ++ "\n" ++ result
+    , String.join "\n" <| "Step;Opened ways;Selected way;Selected Goal;New Ways" :: List.map bchrowToTableString res.table
+    ]
+
+
 
 -- PARSER
 
@@ -523,7 +667,7 @@ hornFactSymbParser : Parser String
 hornFactSymbParser =
     Parser.succeed ()
         |. Parser.chompIf Char.isUpper
-        |. Parser.chompWhile Char.isUpper
+        |. Parser.chompWhile Char.isAlphaNum
         |> Parser.getChompedString
 
 
@@ -818,14 +962,14 @@ hornKBToMathStringComma kb =
     String.join ", " <| List.map hornFactToMathString <| Set.toList kb
 
 
-{-| It gives the string representation of a Horn KB separating facts by & using unicode notation
+{-| It gives the string representation of a Horn KB separating facts by ∧ using unicode notation
 -}
 hornKBToStringWedge : HornKB -> String
 hornKBToStringWedge kb =
-    String.join " & " <| List.map hornFactToString <| Set.toList kb
+    String.join " ∧ " <| List.map hornFactToString <| Set.toList kb
 
 
-{-| It gives the string representation of a Horn KB separating facts by & using latex notation
+{-| It gives the string representation of a Horn KB separating facts by ∧ using latex notation
 -}
 hornKBToMathStringWedge : HornKB -> String
 hornKBToMathStringWedge kb =
@@ -850,7 +994,7 @@ hornRuleToMathString ( ra, rc ) =
 -}
 hornRulesToString : List HornRule -> String
 hornRulesToString rs =
-    String.join ", " <| List.indexedMap (\i r -> AUX.replaceBySubscript "R" ++ String.fromInt (i + 1) ++ " ≡ " ++ hornRuleToString r) rs
+    String.join ", " <| List.indexedMap (\i r -> AUX.replaceBySubscript "R" ++ String.fromInt (i + 1) ++ " : " ++ hornRuleToString r) rs
 
 
 {-| It gives the string representation of a Horn rule list using latex notation and indexing the formulas by its position in the list

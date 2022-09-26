@@ -1,4 +1,4 @@
-module LogicUS.AUX.AuxiliarFunctions exposing (cleanSpaces, fromListToTableLatex, fromListToTableString, powerset, replaceBySubscript, replaceBySuperscript, subscriptLetters, uniqueConcatList)
+module LogicUS.PL.AuxiliarFunctions exposing (cleanSpaces, fromListToTableLatex, fromListToTableString, powerset, replaceBySubscript, replaceBySuperscript, setMinus, subscriptLetters, uniqueConcatList)
 
 import Dict exposing (Dict)
 import List.Extra as LE
@@ -30,6 +30,15 @@ uniqueConcatList xs ys =
 powerset : List a -> List (List a)
 powerset =
     List.foldr (\x acc -> acc ++ List.map ((::) x) acc) [ [] ]
+
+
+
+-- It calculates de difference (as sets) of two lists
+
+
+setMinus : List a -> List a -> List a
+setMinus xs ys =
+    List.filter (\x -> not <| List.member x ys) xs
 
 
 

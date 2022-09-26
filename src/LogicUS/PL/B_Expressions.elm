@@ -1,8 +1,10 @@
-module LogicUS.AUX.B_Expressions exposing (B_Expr(..), evaluateBExpr, expressionB, parseBExpr, toMathStringBExpr, toStringBExpr, varsInB_Expr)
+module LogicUS.PL.B_Expressions exposing (..)
+
+-- (B_Expr(..), evaluateBExpr, expressionB, parseBExpr, toMathStringBExpr, toStringBExpr, varsInB_Expr)
 
 import Dict exposing (Dict)
-import LogicUS.AUX.A_Expressions exposing (..)
-import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
+import LogicUS.PL.A_Expressions exposing (..)
+import LogicUS.PL.AuxiliarFunctions exposing (uniqueConcatList)
 import Parser exposing (..)
 
 

@@ -42,7 +42,7 @@ module LogicUS.PL.SemanticTableaux exposing
 import Graph.Tree as GTree exposing (Tree)
 import Json.Encode as JSONE exposing (Value)
 import List.Extra as LE
-import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
+import LogicUS.PL.AuxiliarFunctions exposing (uniqueConcatList)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), Interpretation, SetPL)
 
 

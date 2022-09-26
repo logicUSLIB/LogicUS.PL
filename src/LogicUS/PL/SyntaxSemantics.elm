@@ -7,7 +7,7 @@ module LogicUS.PL.SyntaxSemantics exposing
     , fplToString, fplToMathString, fplTruthTableString, fplTruthTableMathString, fplFormTreeToString, fplFormTreeToDOT
     , splToString, splToMathString, splToMathString2, splTruthTableString, splTruthTableMathString, splCompactTruthTableString, splCompactTruthTableMathString
     , interpretationToString, interpretationsToString, interpretationToMathString, interpretationsToMathString
-    , interpretationsFromSymbolsAndLiterals, splConjunction, splDisjunction
+    , interpretationsFromSymbolsAndLiterals, splConjunction, splDisjunction, splNegation
     )
 
 {-| The module provides the elementary tools for working with propositional logic. It allows defining both formulas and sets as well as performing some basic operations on them, such as evaluations regarding interpretations, construction of truth tables, extraction of models and decision of satisfaction, tautology and logical consequence.
@@ -55,7 +55,7 @@ module LogicUS.PL.SyntaxSemantics exposing
 
 # Other functions
 
-@docs interpretationsFromSymbolsAndLiterals, splConjunction, splDisjunction
+@docs interpretationsFromSymbolsAndLiterals, splConjunction, splDisjunction, splNegation
 
 -}
 
@@ -66,7 +66,7 @@ module LogicUS.PL.SyntaxSemantics exposing
 import Graph exposing (Edge, Graph, Node, NodeId)
 import Graph.DOT as GDOT exposing (defaultStyles)
 import List.Extra as LE
-import LogicUS.AUX.AuxiliarFunctions as AUX
+import LogicUS.PL.AuxiliarFunctions as AUX
 import Parser exposing ((|.), (|=), Parser, Trailing(..))
 import Set exposing (Set)
 
@@ -824,7 +824,7 @@ splRead fs =
 
     fplToInputString f3 == "((p|q)->r)"
 
-    fplToInputString f4 == "_|_"
+    fplToInputString f4 == "!F"
 
 -}
 fplToInputString : FormulaPL -> String
@@ -876,8 +876,8 @@ plVarParser =
 plVarNameParser : Parser String
 plVarNameParser =
     Parser.succeed ()
-        |. Parser.chompIf Char.isLower
-        |. Parser.chompWhile Char.isLower
+        |. Parser.chompIf Char.isAlphaNum
+        |. Parser.chompWhile Char.isAlphaNum
         |> Parser.getChompedString
 
 
@@ -1367,7 +1367,7 @@ splToString fs =
 -}
 splToMathString : List FormulaPL -> String
 splToMathString fs =
-    "\\begin{array}{l} " ++ (String.join " \\\\ " <| List.map fplToMathString fs) ++ "\\end{array}"
+    "\\begin{array}{c} " ++ (String.join " \\\\ " <| List.map fplToMathString fs) ++ "\\end{array}"
 
 
 {-| It generates the Latex string of a Set of PL formulas in one line, avoiding the use of the array. The result requires a math enviroment to be displayed.
@@ -1741,6 +1741,13 @@ interpretationsToMathString is xs =
     "\\begin{array}{c}" ++ (String.join " \\\\ " <| List.map (\i -> interpretationToMathString i xs) is) ++ " \\end{array}"
 
 
+{-| It transforms a SetPL into a new SetPL by negating each formula of the set.
+-}
+splNegation : SetPL -> SetPL
+splNegation =
+    List.map fplNegation
+
+
 {-| It transforms a SetPL into a FormulaPL using conjuction between formulas. If Set is empty Taut is given
 -}
 splConjunction : SetPL -> FormulaPL
@@ -1753,13 +1760,13 @@ splConjunction fs =
             List.foldl (\f ac -> Conj ac f) x xs
 
 
-{-| It transforms a SetPL into a FormulaPL using disjunction between formulas. If Set is empty Taut is given
+{-| It transforms a SetPL into a FormulaPL using disjunction between formulas. If Set is empty Insat is given
 -}
 splDisjunction : SetPL -> FormulaPL
 splDisjunction fs =
     case fs of
         [] ->
-            Taut
+            Insat
 
         x :: xs ->
             List.foldl (\f ac -> Disj ac f) x xs

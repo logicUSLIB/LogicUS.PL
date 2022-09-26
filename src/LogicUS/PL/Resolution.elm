@@ -45,7 +45,7 @@ import Dict exposing (Dict)
 import Graph exposing (Edge, Graph, Node)
 import Graph.DOT exposing (defaultStyles)
 import List.Extra as LE
-import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
+import LogicUS.PL.AuxiliarFunctions exposing (uniqueConcatList)
 import LogicUS.PL.Clauses as PL_CL exposing (ClausePL, ClausePLLiteral, ClausePLSet)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), PSymb)
 import Set

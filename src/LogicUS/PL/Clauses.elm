@@ -1,9 +1,9 @@
 module LogicUS.PL.Clauses exposing
     ( ClausePLLiteral, ClausePL, ClausePLSet
     , cplSort, cplIsPositive, cplIsNegative, cplSubsumes, cplIsTautology, csplRemoveEqClauses, csplRemoveTautClauses, csplRemoveSubsumedClauses, cplSymbols, csplSymbols, cplInterpretations, csplInterpretations, cplValuation, csplValuation, cplModels, csplModels, cplIsInsat, csplIsTaut, csplIsSat, csplIsInsat
-    , clauseLitToLiteral, cplFromCNF, fplToClauses, splToClauses
+    , clauseLitToLiteral, csplFromCNF, fplToClauses, splToClauses
     , cplReadFromString, cplReadExtraction, cplToInputString
-    , cplToString, cplToMathString, csplToString, csplToMathString
+    , cplToString, cplToMathString, csplToString, csplToMathString, csplToDIMACS
     )
 
 {-| The module provides the tools for express formulas in their Clausal Form.
@@ -21,7 +21,7 @@ module LogicUS.PL.Clauses exposing
 
 # Formulas and Clauses
 
-@docs clauseLitToLiteral, cplFromCNF, fplToClauses, splToClauses
+@docs clauseLitToLiteral, csplFromCNF, fplToClauses, splToClauses
 
 
 # Clauses Parser
@@ -31,7 +31,7 @@ module LogicUS.PL.Clauses exposing
 
 # Clauses Representation
 
-@docs cplToString, cplToMathString, csplToString, csplToMathString
+@docs cplToString, cplToMathString, csplToString, csplToMathString, csplToDIMACS
 
 -}
 
@@ -39,7 +39,8 @@ module LogicUS.PL.Clauses exposing
 -- IMPORTS --
 --=========--
 
-import LogicUS.AUX.AuxiliarFunctions exposing (cleanSpaces, powerset, uniqueConcatList)
+import Dict exposing (Dict)
+import LogicUS.PL.AuxiliarFunctions exposing (cleanSpaces, powerset, uniqueConcatList)
 import LogicUS.PL.NormalForms as PL_NF
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), Interpretation, Literal, PSymb, SetPL)
 import Parser exposing ((|.), (|=), Parser, Trailing(..))
@@ -382,10 +383,10 @@ csplIsInsat cs =
 
 {-| It pass a CNF formula to a Set of clausses
 -}
-cplFromCNF : FormulaPL -> Maybe ClausePLSet
-cplFromCNF f =
+csplFromCNF : FormulaPL -> Maybe ClausePLSet
+csplFromCNF f =
     let
-        cplFromCNFAux g =
+        csplFromCNFAux g =
             case g of
                 Atom symb ->
                     Just [ [ ( symb, True ) ] ]
@@ -397,8 +398,8 @@ cplFromCNF f =
                     Maybe.map (\c -> [ c ]) <|
                         Maybe.map cplSort <|
                             Maybe.map2 uniqueConcatList
-                                (Maybe.map List.concat <| cplFromCNFAux g1)
-                                (Maybe.map List.concat <| cplFromCNFAux g2)
+                                (Maybe.map List.concat <| csplFromCNFAux g1)
+                                (Maybe.map List.concat <| csplFromCNFAux g2)
 
                 Insat ->
                     Just [ [] ]
@@ -411,7 +412,7 @@ cplFromCNF f =
     in
     case f of
         Conj f1 f2 ->
-            Maybe.map2 uniqueConcatList (cplFromCNF f1) (cplFromCNF f2)
+            Maybe.map2 uniqueConcatList (csplFromCNF f1) (csplFromCNF f2)
 
         Atom symb ->
             Just [ [ ( symb, True ) ] ]
@@ -423,8 +424,8 @@ cplFromCNF f =
             Maybe.map (\c -> [ c ]) <|
                 Maybe.map cplSort <|
                     Maybe.map2 uniqueConcatList
-                        (Maybe.map List.concat <| cplFromCNFAux f1)
-                        (Maybe.map List.concat <| cplFromCNFAux f2)
+                        (Maybe.map List.concat <| csplFromCNFAux f1)
+                        (Maybe.map List.concat <| csplFromCNFAux f2)
 
         Insat ->
             Just [ [] ]
@@ -444,7 +445,7 @@ cplFromCNF f =
 -}
 fplToClauses : FormulaPL -> ClausePLSet
 fplToClauses f =
-    csplRemoveTautClauses <| csplRemoveSubsumedClauses <| Maybe.withDefault [ [] ] <| cplFromCNF <| PL_NF.fplToCNF f
+    csplRemoveTautClauses <| csplRemoveSubsumedClauses <| Maybe.withDefault [ [] ] <| csplFromCNF <| PL_NF.fplToCNF f
 
 
 {-| Express a set of formulas as a Set of clauses.
@@ -659,3 +660,38 @@ csplToString cs =
 csplToMathString : ClausePLSet -> String
 csplToMathString cs =
     "\\lbrace" ++ (String.join ", \\, " <| List.map (\x -> (cplToMathString << cplSort) x) cs) ++ "\\rbrace"
+
+
+{-| It generates the representation of a set of clauses following DIMACS format.
+-}
+csplToDIMACS : ClausePLSet -> ( String, Dict Int PSymb )
+csplToDIMACS cs =
+    let
+        symbs =
+            Dict.fromList <| List.indexedMap (\i s -> ( s, i + 1 )) <| csplSymbols cs
+    in
+    let
+        cplToDIMACS c =
+            (String.join " " <|
+                List.map
+                    (\( symb, sign ) ->
+                        let
+                            symb_id =
+                                Maybe.withDefault 0 <| Dict.get symb symbs
+                        in
+                        if sign then
+                            String.fromInt symb_id
+
+                        else
+                            String.fromInt <| -symb_id
+                    )
+                    c
+            )
+                ++ " 0"
+
+        symbsStr =
+            String.join ", " <| List.map (\( k, v ) -> String.fromInt v ++ " : " ++ (PL_SS.fplToMathString <| PL_SS.Atom k)) <| Dict.toList symbs
+    in
+    ( "p cnf " ++ (String.fromInt <| Dict.size symbs) ++ " " ++ (String.fromInt <| List.length cs) ++ "\n" ++ (String.join "\n" <| List.map cplToDIMACS cs) ++ "\nc " ++ symbsStr
+    , Dict.fromList <| List.map2 Tuple.pair (Dict.values symbs) (Dict.keys symbs)
+    )

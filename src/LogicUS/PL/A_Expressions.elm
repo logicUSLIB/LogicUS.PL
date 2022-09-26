@@ -1,7 +1,7 @@
-module LogicUS.AUX.A_Expressions exposing (A_Expr, evaluateAExpr, expressionA, parseAExpr, toMathStringAExpr, toStringAExpr, varsInA_Expr)
+module LogicUS.PL.A_Expressions exposing (A_Expr, evaluateAExpr, expressionA, parseAExpr, toMathStringAExpr, toStringAExpr, varsInA_Expr)
 
 import Dict exposing (Dict)
-import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
+import LogicUS.PL.AuxiliarFunctions exposing (uniqueConcatList)
 import Maybe
 import Parser exposing (..)
 import Tuple

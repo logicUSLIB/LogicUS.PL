@@ -1,5 +1,5 @@
 module LogicUS.PL.CSP exposing
-    ( BigFPL, bfplReadFromString, bfplReadExtraction
+    ( BigFPL(..), bfplReadFromString, bfplReadExtraction
     , bfplToFPL, sbfplToSPL
     , sbfplsolver, solver
     , bfplToString, bfplToMathString, bfplToMathString2, solutionModelToString, solutionModelToMathString
@@ -31,9 +31,9 @@ module LogicUS.PL.CSP exposing
 
 import Dict exposing (Dict)
 import List.Extra as LE
-import LogicUS.AUX.A_Expressions as Aux_AE exposing (A_Expr)
-import LogicUS.AUX.AuxiliarFunctions exposing (uniqueConcatList)
-import LogicUS.AUX.B_Expressions as Aux_BE exposing (B_Expr)
+import LogicUS.PL.A_Expressions as Aux_AE exposing (A_Expr)
+import LogicUS.PL.AuxiliarFunctions exposing (uniqueConcatList)
+import LogicUS.PL.B_Expressions as Aux_BE exposing (B_Expr)
 import LogicUS.PL.Clauses as PL_CL exposing (ClausePL, ClausePLSet, fplToClauses)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL, Interpretation, PSymb)
 import Maybe.Extra as ME
@@ -75,8 +75,8 @@ type BigFPL
 atomName : Parser String
 atomName =
     Parser.variable
-        { start = Char.isUpper
-        , inner = \c -> Char.isUpper c
+        { start = Char.isAlpha
+        , inner = \c -> Char.isAlpha c
         , reserved = Set.fromList []
         }
 
@@ -114,6 +114,25 @@ nameParamBigFPL =
         |> Parser.getChompedString
 
 
+myInt : Parser Int
+myInt =
+    Parser.andThen myIntToInt
+        (Parser.succeed identity
+            |. Parser.chompWhile Char.isDigit
+            |> Parser.getChompedString
+        )
+
+
+myIntToInt : String -> Parser Int
+myIntToInt readed =
+    case Parser.run Parser.int readed of
+        Ok i ->
+            Parser.succeed i
+
+        Err _ ->
+            Parser.problem "Expecting Int"
+
+
 valuesParamBigFPL : Parser (List Int)
 valuesParamBigFPL =
     Parser.oneOf
@@ -126,8 +145,8 @@ valuesParamBigFPL =
                 Parser.oneOf
                     [ Parser.succeed negate
                         |. Parser.symbol "-"
-                        |= Parser.int
-                    , Parser.int
+                        |= myInt
+                    , myInt
                     ]
             , trailing = Optional
             }
@@ -136,15 +155,15 @@ valuesParamBigFPL =
             |= Parser.oneOf
                 [ Parser.succeed negate
                     |. Parser.symbol "-"
-                    |= Parser.int
-                , Parser.int
+                    |= myInt
+                , myInt
                 ]
-            |. Parser.symbol ":"
+            |. Parser.symbol ".."
             |= Parser.oneOf
                 [ Parser.succeed negate
                     |. Parser.symbol "-"
-                    |= Parser.int
-                , Parser.int
+                    |= myInt
+                , myInt
                 ]
             |. Parser.symbol ")"
         ]
@@ -154,15 +173,16 @@ paramBigFPL : Parser Param
 paramBigFPL =
     Parser.succeed (\n v -> { name = n, values = v })
         |= nameParamBigFPL
+        |. Parser.symbol "\\in"
         |= valuesParamBigFPL
 
 
 listParamBigFPL : Parser (List Param)
 listParamBigFPL =
     Parser.sequence
-        { start = "["
+        { start = ""
         , separator = ","
-        , end = "]"
+        , end = ""
         , spaces = Parser.spaces
         , item = paramBigFPL
         , trailing = Forbidden
@@ -175,19 +195,37 @@ termBigFPL =
         [ Parser.succeed identity
             |= atomParser
         , Parser.succeed BAnd
-            |. Parser.symbol "!&"
+            |. Parser.oneOf
+                [ Parser.symbol "/\\"
+                , Parser.symbol "!&"
+                , Parser.symbol "⋀"
+                ]
+            |. Parser.symbol "_{"
             |= listParamBigFPL
-            |. Parser.symbol "{"
-            |= Aux_BE.expressionB
+            |= Parser.oneOf
+                [ Parser.succeed identity
+                    |. Parser.symbol ":"
+                    |= Aux_BE.expressionB
+                , Parser.succeed Aux_BE.T
+                ]
             |. Parser.symbol "}"
             |. Parser.symbol "("
             |= Parser.lazy (\_ -> expressionBigFPL)
             |. Parser.symbol ")"
         , Parser.succeed BOr
-            |. Parser.symbol "!|"
+            |. Parser.oneOf
+                [ Parser.symbol "\\/"
+                , Parser.symbol "!|"
+                , Parser.symbol "⋁"
+                ]
+            |. Parser.symbol "_{"
             |= listParamBigFPL
-            |. Parser.symbol "{"
-            |= Aux_BE.expressionB
+            |= Parser.oneOf
+                [ Parser.succeed identity
+                    |. Parser.symbol ":"
+                    |= Aux_BE.expressionB
+                , Parser.succeed Aux_BE.T
+                ]
             |. Parser.symbol "}"
             |. Parser.symbol "("
             |= Parser.lazy (\_ -> expressionBigFPL)
@@ -225,10 +263,22 @@ type Operator
 operator : Parser Operator
 operator =
     Parser.oneOf
-        [ Parser.map (\_ -> AndOp) (Parser.symbol "&")
-        , Parser.map (\_ -> OrOp) (Parser.symbol "|")
-        , Parser.map (\_ -> ImplOp) (Parser.symbol "->")
-        , Parser.map (\_ -> EquivOp) (Parser.symbol "<->")
+        [ Parser.succeed AndOp
+            |. Parser.symbol "&"
+        , Parser.succeed AndOp
+            |. Parser.symbol "∧"
+        , Parser.succeed OrOp
+            |. Parser.symbol "|"
+        , Parser.succeed OrOp
+            |. Parser.symbol "∨"
+        , Parser.succeed ImplOp
+            |. Parser.symbol "->"
+        , Parser.succeed ImplOp
+            |. Parser.symbol "→"
+        , Parser.succeed EquivOp
+            |. Parser.symbol "<->"
+        , Parser.succeed EquivOp
+            |. Parser.symbol "↔"
         ]
 
 
@@ -312,7 +362,7 @@ bfplReadFromString str =
         ( Nothing, "Empty expression" )
 
     else
-        case Parser.run expressionBigFPL <| String.replace " " "" <| String.replace "\n" "" <| str of
+        case Parser.run expressionBigFPL <| String.replace " " "" <| String.replace "\n" "" <| "(" ++ str ++ ")" of
             Ok y ->
                 if isWFF y then
                     ( Just y, "" )
@@ -929,3 +979,6 @@ solutionModelToString i =
 solutionModelToMathString : Interpretation -> String
 solutionModelToMathString i =
     PL_SS.splToMathString2 <| List.map PL_SS.Atom i
+
+
+
