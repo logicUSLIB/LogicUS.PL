@@ -1,10 +1,11 @@
-module LogicUS.PL.HornRS exposing
-    ( HornFact, HornRule, HornKB
-    , FwChRow, FwChResult, forwardChaining1, forwardChaining2, forwardChainingResultToString, forwardChainingResultToMDString
+module LogicUS.PL.HornRS exposing (
+    HornFact, HornRule, HornKB
+    ,  FwChRow, FwChResult, forwardChaining1, forwardChaining2, forwardChainingResultToString, forwardChainingResultToMDString
     , BwChRow, BwChResult, backwardChaining1, backwardChainingResultToString, backwardChainingResultToMDString
     , hornFactToFPL, hornKBToSPL, hornRuleToFPL, hornRulesToSPL, hornFactToClause, hornKBToClauses, hornRuleToClause, hornRulesToClauses
-    , hornFactReadFromString, hornFactReadExtraction, hornFactToInputString, hornKBReadFromString, hornKBReadExtraction, hornKBToInputString, hornRuleReadFromString, hornRuleReadExtraction, hornRuleToInputString, hornRulesReadFromString, hornRulesReadExtraction, hornRulesToInputString
-    , hornFactToString, hornFactToMathString, hornKBToStringComma, hornKBToStringWedge, hornKBToMathStringComma, hornKBToMathStringWedge, hornRuleToString, hornRuleToMathString, hornRulesToString, hornRulesToMathString
+    , hornFactRead , hornFactReadFromString, hornFactReadExtraction, hornFactToInputString, hornKBRead, hornKBReadFromString, hornKBReadExtraction
+    , hornKBToInputString, hornRuleRead, hornRuleReadFromString, hornRuleReadExtraction, hornRuleToInputString, hornRulesRead, hornRulesReadFromString, hornRulesReadExtraction, hornRulesToInputString
+    ,hornFactToString, hornFactToMathString, hornKBToStringComma, hornKBToStringWedge, hornKBToMathStringComma, hornKBToMathStringWedge, hornRuleToString, hornRuleToMathString, hornRulesToString, hornRulesToMathString
     )
 
 {-| The module provides the tools to work with Horn Reasoning Systems (HRS) through the definition of facts and rules and the use of forward and backward chaining to make deductions. Conversion to standard formulas and clauses is also provided to apply other algorithms on them.
@@ -32,7 +33,7 @@ module LogicUS.PL.HornRS exposing
 
 # HRS Parser
 
-@docs hornFactReadFromString, hornFactReadExtraction, hornFactToInputString, hornKBReadFromString, hornKBReadExtraction, hornKBToInputString, hornRuleReadFromString, hornRuleReadExtraction, hornRuleToInputString, hornRulesReadFromString, hornRulesReadExtraction, hornRulesToInputString
+@docs hornFactRead, hornFactReadFromString, hornFactReadExtraction, hornFactToInputString, hornKBRead, hornKBReadFromString, hornKBReadExtraction, hornKBToInputString, hornRuleRead, hornRuleReadFromString, hornRuleReadExtraction, hornRuleToInputString, hornRulesRead, hornRulesReadFromString, hornRulesReadExtraction, hornRulesToInputString
 
 
 # HRS Representations
@@ -618,7 +619,16 @@ backwardChainingResultToString res =
 
 
 -- PARSER
+{-| It reads a Horn fact from a string. The string may correspond to:
 
+  - A string of uppercase letters optionaly subindexed using "_{" "}" as delimiters and integers separated by commas as indices. Ex: "P", "PAUL", "P_{1}", "PAUL\_{1,2,3}"
+  - A string with "!F" that represents inconsistence.
+  - A string with "!T" that represents tautology.
+
+
+-}
+hornFactRead : String -> HornFact
+hornFactRead = ( hornFactReadExtraction << hornFactReadFromString)
 
 {-| It reads a Horn fact from a string. The string may correspond to:
 
@@ -626,7 +636,7 @@ backwardChainingResultToString res =
   - A string with "!F" that represents inconsistence.
   - A string with "!T" that represents tautology.
 
-It gives a tuple with the Horn fact (if it could be read) , the input string and the message of error (if fact couldn't be read).
+It gives a tuple with the Horn fact (if it could be read) , otherwise, the false fact is given. 
 
 -}
 hornFactReadFromString : String -> ( Maybe HornFact, String, String )
@@ -705,6 +715,13 @@ hornFactOnlyParser =
         |= hornFactParser
         |. Parser.end
 
+{-| It reads a Horn KB from a string. The string has to match to a serial of facts separated by commas, following the rules defined for facts parsing.
+
+It gives the Horn KB (if it could be read), or the empty set (if it couldn't).
+-}
+
+hornKBRead : String -> HornKB
+hornKBRead = (hornKBReadExtraction << hornKBReadFromString)
 
 {-| It reads a Horn KB from a string. The string has to match to a serial of facts separated by commas, following the rules defined for facts parsing.
 
@@ -756,7 +773,14 @@ hornKBParser =
 
 {-| It reads a Horn rule from a string. The string has to match to a serial of facts separated by `&` for the antecedents, followed by the symbol `->` and a unique fact as consecuent.
 
-It gives a tuple with the Horn rule (if it could be read) , the input string and the message of error (if fact couldn't be read).
+It gives the Horn rule (if it could be read), otherwise, ⊥ -> ⊥ is given.
+-}
+hornRuleRead : String -> HornRule
+hornRuleRead = (hornRuleReadExtraction << hornRuleReadFromString)
+
+{-| It reads a Horn rule from a string. The string has to match to a serial of facts separated by `&` for the antecedents, followed by the symbol `->` and a unique fact as consecuent.
+
+It gives a tuple with the Horn rule (if it could be read) , the input string and the message of error (if rule couldn't be read).
 
 -}
 hornRuleReadFromString : String -> ( Maybe HornRule, String, String )
@@ -809,6 +833,14 @@ hornLHSParser =
         }
         |> Parser.map Set.fromList
 
+
+{-| It reads a Horn rule list from a string. The string has to match to a serial of rules separated by commas.
+
+It gives a tuple with the Horn rule list (if it could be read) , the empty list (if it couldn't).
+-}
+
+hornRulesRead : String -> List HornRule
+hornRulesRead = (hornRulesReadExtraction << hornRulesReadFromString)
 
 {-| It reads a Horn rule list from a string. The string has to match to a serial of rules separated by commas.
 

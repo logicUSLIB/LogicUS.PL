@@ -39,6 +39,9 @@ sigma g =
         Disj _ Taut ->
             Taut
 
+        Disj f1 (Neg f2) ->
+            if f1 == f2 then  Taut else g
+
         Disj Insat h ->
             h
 

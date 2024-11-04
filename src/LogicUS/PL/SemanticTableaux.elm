@@ -3,7 +3,7 @@ module LogicUS.PL.SemanticTableaux exposing
     , fplType, fplComponents
     , splAllLiterals, splRemoveTaut, splSearchContradiction, splSearchDN, splSearchAlpha, splSearchBeta, splExpandDN, splExpandAlpha, splExpandBeta
     , semanticTableau, semanticTableauRelevantLeaves, semanticTableauOpenLeaves, semanticTableauModels
-    , semanticTableauToString, semanticTableauToDOT, semanticTableauToJSON
+    , semanticTableauToString, semanticTableauToDOT, semanticTableauToJSON, semanticTableauToDOTwithStyles
     )
 
 {-| The module provides the elementary tools for building the semantic tableau of a set of PL formulas.
@@ -31,7 +31,7 @@ module LogicUS.PL.SemanticTableaux exposing
 
 # Fuctions for representation
 
-@docs semanticTableauToString, semanticTableauToDOT, semanticTableauToJSON
+@docs semanticTableauToString, semanticTableauToDOT, semanticTableauToJSON, semanticTableauToDOTwithStyles
 
 -}
 
@@ -752,3 +752,14 @@ semanticTableauNodeToDOTAux2 gid p ni children =
 
                 _ ->
                     ( "", -2 )
+
+
+{-| It gives a DOT representation for the tableau. It allows defining some styles for nodes (node[nodesS]) and edges. 
+    
+        semanticTableauToDOTwithStyles t "node [shape=box, color=blue, style=\"rounded, filled\"] \n edge [color=\"aquamarine4\"]"
+-}
+semanticTableauToDOTwithStyles : PLSemanticTableau -> String -> String
+semanticTableauToDOTwithStyles t styles =
+    "digraph{ \n\n"
+     ++ styles
+     ++ "\n\n" ++ (Tuple.first <| semanticTableauNodeToDOTAux 0 -1 t) ++ "}"

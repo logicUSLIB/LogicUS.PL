@@ -2,7 +2,7 @@ module LogicUS.PL.Clauses exposing
     ( ClausePLLiteral, ClausePL, ClausePLSet
     , cplSort, cplIsPositive, cplIsNegative, cplSubsumes, cplIsTautology, csplRemoveEqClauses, csplRemoveTautClauses, csplRemoveSubsumedClauses, cplSymbols, csplSymbols, cplInterpretations, csplInterpretations, cplValuation, csplValuation, cplModels, csplModels, cplIsInsat, csplIsTaut, csplIsSat, csplIsInsat
     , clauseLitToLiteral, csplFromCNF, fplToClauses, splToClauses
-    , cplReadFromString, cplReadExtraction, cplToInputString
+    , cplRead, cplReadFromString, cplReadExtraction, cplToInputString
     , cplToString, cplToMathString, csplToString, csplToMathString, csplToDIMACS
     )
 
@@ -26,7 +26,7 @@ module LogicUS.PL.Clauses exposing
 
 # Clauses Parser
 
-@docs cplReadFromString, cplReadExtraction, cplToInputString
+@docs cplRead , cplReadFromString, cplReadExtraction, cplToInputString
 
 
 # Clauses Representation
@@ -437,23 +437,15 @@ csplFromCNF f =
             Nothing
 
 
-{-| Express a formula as a Set of clauses.
-
-    f1 = (fplReadExtraction << fplReadFromString) "¬p & q <-> r"
-    fplToClauses f1 == [[("p",True),("q",False),("r",True)],[("p",False),("r",False)],[("q",True),("r",False)]]
+{-| Express a formula as a Set of clauses. (Uses Tseitin Transformation)
 
 -}
 fplToClauses : FormulaPL -> ClausePLSet
 fplToClauses f =
-    csplRemoveTautClauses <| csplRemoveSubsumedClauses <| Maybe.withDefault [ [] ] <| csplFromCNF <| PL_NF.fplToCNF f
+    csplRemoveTautClauses <| csplRemoveSubsumedClauses <| Maybe.withDefault [ [] ] <| csplFromCNF <| PL_NF.flpToCNFTseitin f
 
 
-{-| Express a set of formulas as a Set of clauses.
-
-    fs = List.map (fplReadExtraction << fplReadFromString) ["p->q", "p | q -> r", "¬p | q"]
-
-    cs = splToClauses fs
-    cs == [[("p",False),("q",True)],[("p",False),("r",True)],[("q",False),("r",True)]]
+{-| Express a set of formulas as a Set of clauses. (Uses Tseitin Transformation)
 
 -}
 splToClauses : SetPL -> ClausePLSet
@@ -466,6 +458,10 @@ splToClauses fs =
 --  PARSER   --
 --===========--
 
+{-| It reads the formula from a string. It returns a clause (if it can be read it) and the empty clause (if not).
+-}
+cplRead : String -> ClausePL
+cplRead = (cplReadExtraction  << cplReadFromString)
 
 {-| It reads the formula from a string. It returns a tuple with may be a formula (if it can be read it) and a message of error it it cannot.
 
@@ -695,3 +691,4 @@ csplToDIMACS cs =
     ( "p cnf " ++ (String.fromInt <| Dict.size symbs) ++ " " ++ (String.fromInt <| List.length cs) ++ "\n" ++ (String.join "\n" <| List.map cplToDIMACS cs) ++ "\nc " ++ symbsStr
     , Dict.fromList <| List.map2 Tuple.pair (Dict.values symbs) (Dict.keys symbs)
     )
+

@@ -1,5 +1,5 @@
 module LogicUS.PL.CSP exposing
-    ( BigFPL(..), bfplReadFromString, bfplReadExtraction
+    ( BigFPL(..), bfplReadFromString, bfplReadExtraction, bfplRead
     , bfplToFPL, sbfplToSPL
     , sbfplsolver, solver
     , bfplToString, bfplToMathString, bfplToMathString2, solutionModelToString, solutionModelToMathString
@@ -10,7 +10,7 @@ module LogicUS.PL.CSP exposing
 
 # Defining BigFPL
 
-@docs BigFPL, bfplReadFromString, bfplReadExtraction
+@docs BigFPL, bfplReadFromString, bfplReadExtraction, bfplRead
 
 
 # BigFPL to FormulaPL
@@ -335,6 +335,11 @@ finalize revOps finalExpr =
         ( expr, EquivOp ) :: otherRevOps ->
             finalize otherRevOps (Equi expr finalExpr)
 
+
+{-| It allows defining BFPL from text strings, through a parser. If the BFPL parser fails, then it gives Insat
+-}
+bfplRead : String -> BigFPL
+bfplRead = (bfplReadExtraction << bfplReadFromString)
 
 {-| It allows defining BFPL from text strings, through a parser. To do this, a series of rules are established:
 

@@ -28,11 +28,11 @@ module LogicUS.PL.DPLL exposing
 --===========--
 
 import Graph exposing (Edge, Graph, Node)
-import Graph.DOT exposing (defaultStyles)
 import IntDict
 import List.Extra as LE
 import LogicUS.PL.Clauses as PL_CL exposing (ClausePL, ClausePLLiteral)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), Interpretation, PSymb)
+import Graph.DOT exposing (Styles)
 
 
 {-| Defines the DPLL Tableau type as a Graph whose node labels are pairs of an integer (0: internal node, 1: open leaf, -1: closed leaf) and the set of PL clauses considered in the corresponding node; and a edge label is just the literal which is propagated.
@@ -238,13 +238,15 @@ dpllTableauToDOT g =
 
 
 {-| Express a DPLL Tableau as a string in DOT format that is viewable with a GraphViz Render with Style.
--}
-dpllTableauToDOTStyled : DPLLTableau -> String
-dpllTableauToDOTStyled g =
-    let
+
         myStyles =
             { defaultStyles | node = "shape=Mrecord, fillcolor=\"#c1f6ff\", style=filled, fontcolor=\"#1a2935\", color=\"#1a2935\"", edge = "color=\"#1a2935\", fontcolor=\"#1a2935\"" }
 
+        dpllTableauToDOTStyled g myStyles
+-}
+dpllTableauToDOTStyled : DPLLTableau -> Styles -> String
+dpllTableauToDOTStyled g myStyles =
+    let
         toStringNode =
             \( i, cs ) ->
                 case i of

@@ -1,11 +1,11 @@
-module LogicUS.PL.NormalForms exposing (fplContainsEquiv, fplContainsDisj, fplContainsConj, fplRemoveAllEquiv, fplContainsImpl, fplRemoveAllImpl, fplInteriorizeAllDisj, fplInteriorizeAllConj, fplToNNF, fplToCNF, fplToDNF, dnfAsLiteralSets, cnfAsLiteralSets, fplSatisfiabilityDNF, fplModelsDNF, fplValidityCNF)
+module LogicUS.PL.NormalForms exposing (fplContainsEquiv, fplContainsDisj, fplContainsConj, fplRemoveAllEquiv, fplContainsImpl, fplRemoveAllImpl, fplInteriorizeAllDisj, fplInteriorizeAllConj, fplToNNF, fplToCNF, fplToDNF, dnfAsLiteralSets, cnfAsLiteralSets, fplSatisfiabilityDNF, fplModelsDNF, fplValidityCNF, flpToCNFTseitin)
 
 {-| The module provides the tools for express formulas in their NN, CNF, DNF.
 
 
 # Normal Forms
 
-@docs fplContainsEquiv, fplContainsDisj, fplContainsConj, fplRemoveAllEquiv, fplContainsImpl, fplRemoveAllImpl, fplInteriorizeAllDisj, fplInteriorizeAllConj, fplToNNF, fplToCNF, fplToDNF, dnfAsLiteralSets, cnfAsLiteralSets, fplSatisfiabilityDNF, fplModelsDNF, fplValidityCNF
+@docs fplContainsEquiv, fplContainsDisj, fplContainsConj, fplRemoveAllEquiv, fplContainsImpl, fplRemoveAllImpl, fplInteriorizeAllDisj, fplInteriorizeAllConj, fplToNNF, fplToCNF, fplToDNF, dnfAsLiteralSets, cnfAsLiteralSets, fplSatisfiabilityDNF, fplModelsDNF, fplValidityCNF, flpToCNFTseitin
 
 -}
 
@@ -15,6 +15,11 @@ module LogicUS.PL.NormalForms exposing (fplContainsEquiv, fplContainsDisj, fplCo
 
 import LogicUS.PL.AuxiliarFunctions exposing (uniqueConcatList)
 import LogicUS.PL.SyntaxSemantics as PL_SS exposing (FormulaPL(..), Interpretation, SetPL)
+import LogicUS.PL.SyntaxSemantics exposing (PSymb)
+import List.Extra exposing (elemIndex)
+import List exposing (length)
+import List.Extra exposing (unique)
+import LogicUS.PL.SyntaxSemantics exposing (splConjunction)
 
 
 
@@ -667,3 +672,102 @@ compareLiterals l1 l2 =
 
                 _ ->
                     EQ
+
+
+
+--- TSEITIN TRANSFORMATION
+
+tseitinVar : FormulaPL -> List FormulaPL -> (PSymb, List FormulaPL) 
+tseitinVar p ls =
+    case elemIndex p ls of
+        Just i -> (("𝜏",[i]), ls)
+        Nothing ->  (("𝜏",[length ls]), ls ++ [p])
+
+tseitinProcess : FormulaPL -> List FormulaPL -> List FormulaPL -> (PSymb, List FormulaPL, List FormulaPL)
+tseitinProcess p cnf3ls subfvars =
+    case p of
+        Atom var_p -> (var_p, cnf3ls, subfvars)
+
+        Neg f ->
+            let
+                (var_p, newsubfvars1) = tseitinVar p subfvars
+            in
+            let
+                (var_f, newcnf3ls1, newsubfvars2) = tseitinProcess f cnf3ls newsubfvars1
+            in
+            let
+                newcnf3ls2 = newcnf3ls1 ++ [Disj (Neg (Atom var_p)) (Neg (Atom var_f)), Disj (Atom var_p) (Atom var_f)]
+            in
+            (var_p, newcnf3ls2, newsubfvars2)
+            
+            
+
+        Conj f g ->
+            let
+                (var_p, newsubfvars1) = tseitinVar p subfvars
+            in
+            let
+                (var_f, newcnf3ls1, newsubfvars2) = tseitinProcess f cnf3ls newsubfvars1
+            in
+            let
+                (var_g, newcnf3ls2, newsubfvars3) = tseitinProcess g newcnf3ls1 newsubfvars2
+            in
+            let
+                newcnf3ls3 = newcnf3ls2 ++ [Disj (Neg (Atom var_p)) (Atom var_f), Disj (Neg (Atom var_p)) (Atom var_g), 
+                                            Disj (Atom var_p) (Disj (Neg (Atom var_f)) (Neg (Atom var_g)))]
+                -- (¬var_subfórmula ∨ var_ψ), (¬var_subfórmula ∨ var_θ), (var_subfórmula ∨ ¬var_ψ ∨ ¬var_θ)
+            in
+            (var_p, newcnf3ls3, newsubfvars3)
+
+        Disj f g ->
+             let
+                (var_p, newsubfvars1) = tseitinVar p subfvars
+            in
+            let
+                (var_f, newcnf3ls1, newsubfvars2) = tseitinProcess f cnf3ls newsubfvars1
+            in
+            let
+                (var_g, newcnf3ls2, newsubfvars3) = tseitinProcess g newcnf3ls1 newsubfvars2
+            in
+            let
+                newcnf3ls3 = newcnf3ls2 ++ [Disj (Atom var_p) (Neg (Atom var_f)), Disj (Atom var_p) (Neg (Atom var_g)), 
+                                            Disj (Neg (Atom var_p)) (Disj (Atom var_f) (Atom var_g))]
+                -- (¬var_subfórmula ∨ var_ψ ∨ var_θ), (var_subfórmula ∨ ¬var_ψ), (var_subfórmula ∨ ¬var_θ)
+            in
+            (var_p, newcnf3ls3, newsubfvars3)
+
+        Impl f g ->
+            tseitinProcess (Disj (Neg f) g) cnf3ls subfvars
+
+        Equi f g ->
+            tseitinProcess (Disj (Conj f g) (Conj (Neg f) (Neg g))) cnf3ls subfvars
+
+        Insat ->
+            let
+                (var_p, newsubfvars1) = tseitinVar p subfvars
+            in
+            let
+                newcnf3ls1 = cnf3ls ++ [Neg (Atom var_p)]
+            in
+            (var_p, newcnf3ls1, newsubfvars1)
+
+        Taut ->
+            let
+                (var_p, newsubfvars1) = tseitinVar p subfvars
+            in
+            let
+                newcnf3ls1 = cnf3ls ++ [Atom var_p]
+            in
+            (var_p, newcnf3ls1, newsubfvars1)
+
+
+{-| It perfoms the Tseitin transformation over an FPL (giving a 3-CNF).
+-}
+
+flpToCNFTseitin : FormulaPL -> FormulaPL 
+flpToCNFTseitin p =
+    let
+        (var_p, cnf3ls, _) = tseitinProcess p [] []
+    in
+    splConjunction <| unique (cnf3ls ++ [(Atom var_p)])
+    
