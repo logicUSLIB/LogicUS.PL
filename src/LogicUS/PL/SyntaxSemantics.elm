@@ -748,7 +748,7 @@ The string must satisfy the following rules:
 
   - In case of the same connective, it will be associated from the right, although it is advisable to use the brackets `(`...`)` as special symbols that allow altering the priority of the connectives by explicitly establishing the order of association. For example `¬(p -> q) | r & s)`.
 
-  - The inconsistent formula is represented by the symbol `!F` and the valid formula by the symbol `!V`.
+  - The inconsistent formula is represented by the symbol `!F` and the valid formula by the symbol `!T`.
 
   - The use of spaces is irrelevant.
 
@@ -936,7 +936,11 @@ fplParser : Parser FormulaPL
 fplParser =
     Parser.succeed identity
         |= fplParserAux
-        |. Parser.end
+        |. Parser.oneOf [
+            Parser.symbol "."
+            ,Parser.end
+        ]
+         
 
 
 fplParserAux : Parser FormulaPL
